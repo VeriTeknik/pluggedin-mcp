@@ -1,8 +1,8 @@
-import { ServerParameters } from "./fetch-metamcp.js";
+import { ServerParameters } from "./fetch-pluggedin.js";
 import {
   ConnectedClient,
-  createMetaMcpClient,
-  connectMetaMcpClient,
+  createPluggedinClient,
+  connectPluggedinClient,
 } from "./client.js";
 
 const _sessions: Record<string, ConnectedClient> = {};
@@ -27,12 +27,12 @@ export const getSession = async (
       })
     );
 
-    const { client, transport } = createMetaMcpClient(params);
+    const { client, transport } = createPluggedinClient(params);
     if (!client || !transport) {
       return;
     }
 
-    const newClient = await connectMetaMcpClient(client, transport);
+    const newClient = await connectPluggedinClient(client, transport);
     if (!newClient) {
       return;
     }

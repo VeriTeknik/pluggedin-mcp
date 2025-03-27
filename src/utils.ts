@@ -1,4 +1,4 @@
-import { ServerParameters } from "./fetch-metamcp.js";
+import { ServerParameters } from "./fetch-pluggedin.js";
 import crypto from "crypto";
 
 /**
@@ -46,17 +46,17 @@ export function getDefaultEnvironment(): Record<string, string> {
 }
 
 /**
- * Get the MetaMCP API base URL from environment variables
+ * Get the Pluggedin API base URL from environment variables
  */
-export function getMetaMcpApiBaseUrl(): string {
-  return process.env.METAMCP_API_BASE_URL || "https://api.metamcp.com";
+export function getPluggedinApiBaseUrl(): string {
+  return process.env.PLUGGEDIN_API_BASE_URL || "https://plugged.in/";
 }
 
 /**
- * Get the MetaMCP API key from environment variables
+ * Get the Pluggedin API key from environment variables
  */
-export function getMetaMcpApiKey(): string | undefined {
-  return process.env.METAMCP_API_KEY;
+export function getPluggedinApiKey(): string | undefined {
+  return process.env.PLUGGEDIN_API_KEY;
 }
 
 export function sanitizeName(name: string): string {

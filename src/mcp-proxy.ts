@@ -19,7 +19,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import * as eventsource from "eventsource";
-import { getMcpServers } from "./fetch-metamcp.js";
+import { getMcpServers } from "./fetch-pluggedin.js";
 import { getSessionKey, sanitizeName } from "./utils.js";
 import { cleanupAllSessions, getSession } from "./sessions.js";
 import { ConnectedClient } from "./client.js";
@@ -33,7 +33,7 @@ const resourceToClient: Record<string, ConnectedClient> = {};
 export const createServer = async () => {
   const server = new Server(
     {
-      name: "MetaMCP",
+      name: "Pluggedin",
       version: "0.3.0",
     },
     {
@@ -55,10 +55,16 @@ export const createServer = async () => {
       Object.entries(serverParams).map(async ([uuid, params]) => {
         const sessionKey = getSessionKey(uuid, params);
         const session = await getSession(sessionKey, uuid, params);
-        if (!session) return;
+        if (!session) {
+          console.error(`No session found for server: ${uuid}`);
+          return;
+        }
 
         const capabilities = session.client.getServerCapabilities();
-        if (!capabilities?.tools) return;
+        if (!capabilities?.tools) {
+          console.error(`No tools capabilities found for server: ${uuid}`);
+          return;
+        }
 
         const serverName = session.client.getServerVersion()?.name || "";
         try {
@@ -140,7 +146,7 @@ export const createServer = async () => {
 
     try {
       const promptName = name.split("__")[1];
-      const response = await clientForPrompt.client.request(
+      return await clientForPrompt.client.request(
         {
           method: "prompts/get",
           params: {
@@ -151,8 +157,6 @@ export const createServer = async () => {
         },
         GetPromptResultSchema
       );
-
-      return response;
     } catch (error) {
       console.error(
         `Error getting prompt through ${
@@ -173,10 +177,16 @@ export const createServer = async () => {
       Object.entries(serverParams).map(async ([uuid, params]) => {
         const sessionKey = getSessionKey(uuid, params);
         const session = await getSession(sessionKey, uuid, params);
-        if (!session) return;
+        if (!session) {
+          console.error(`No session found for server: ${uuid}`);
+          return;
+        }
 
         const capabilities = session.client.getServerCapabilities();
-        if (!capabilities?.prompts) return;
+        if (!capabilities?.prompts) {
+          console.error(`No prompts capabilities found for server: ${uuid}`);
+          return;
+        }
 
         const serverName = session.client.getServerVersion()?.name || "";
         try {
@@ -225,10 +235,16 @@ export const createServer = async () => {
       Object.entries(serverParams).map(async ([uuid, params]) => {
         const sessionKey = getSessionKey(uuid, params);
         const session = await getSession(sessionKey, uuid, params);
-        if (!session) return;
+        if (!session) {
+          console.error(`No session found for server: ${uuid}`);
+          return;
+        }
 
         const capabilities = session.client.getServerCapabilities();
-        if (!capabilities?.resources) return;
+        if (!capabilities?.resources) {
+          console.error(`No resources capabilities found for server: ${uuid}`);
+          return;
+        }
 
         const serverName = session.client.getServerVersion()?.name || "";
         try {
@@ -307,10 +323,16 @@ export const createServer = async () => {
         Object.entries(serverParams).map(async ([uuid, params]) => {
           const sessionKey = getSessionKey(uuid, params);
           const session = await getSession(sessionKey, uuid, params);
-          if (!session) return;
+          if (!session) {
+            console.error(`No session found for server: ${uuid}`);
+            return;
+          }
 
           const capabilities = session.client.getServerCapabilities();
-          if (!capabilities?.resources) return;
+          if (!capabilities?.resources) {
+            console.error(`No resources capabilities found for server: ${uuid}`);
+            return;
+          }
 
           const serverName = session.client.getServerVersion()?.name || "";
           try {
@@ -335,7 +357,10 @@ export const createServer = async () => {
               allTemplates.push(...templatesWithSource);
             }
           } catch (error) {
-            return;
+            console.error(
+              `Error fetching resource templates from: ${serverName}`,
+              error
+            );
           }
         })
       );

@@ -6,17 +6,17 @@ startCommand:
     # JSON Schema defining the configuration options for the MCP.
     type: object
     required:
-      - metamcpApiKey
+      - pluggedinApiKey
     properties:
-      metamcpApiKey:
+      pluggedinApiKey:
         type: string
-        description: The API key from metamcp.com/api-keys. Required.
-      metamcpApiBaseUrl:
+        description: The API key from plugged.in/api-keys. Required.
+      pluggedinApiBaseUrl:
         type: string
-        description: Optional override for the MetaMCP App URL (default is https://api.metamcp.com).
+        description: Optional override for the Pluggedin App URL (default is https://api.plugged.in).
   commandFunction:
     # A function that produces the CLI command to start the MCP on stdio.
     # Note: Command line arguments can also be used directly:
-    # --metamcp-api-key <your-api-key> --metamcp-api-base-url <base-url>
+    # --pluggedin-api-key <your-api-key> --pluggedin-api-base-url <base-url>
     |-
-    (config) => ({ command: 'node', args: ['dist/index.js'], env: { METAMCP_API_KEY: config.metamcpApiKey, ...(config.metamcpApiBaseUrl && { METAMCP_API_BASE_URL: config.metamcpApiBaseUrl }) } })
+    (config) => ({ command: 'node', args: ['dist/index.js'], env: { PLUGGEDIN_API_KEY: config.pluggedinApiKey, ...(config.pluggedinApiBaseUrl && { PLUGGEDIN_API_BASE_URL: config.pluggedinApiBaseUrl }) } })

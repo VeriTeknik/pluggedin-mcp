@@ -1,0 +1,40 @@
+# Source files
+src/
+
+# Configuration files
+tsconfig.json
+smithery.yaml
+docker-compose.yml
+Dockerfile
+.env*
+.gitignore
+.gitattributes
+
+# Development and build files
+node_modules/
+*.log
+*.tsbuildinfo
+.vscode/
+.idea/
+.DS_Store
+
+# Git related
+.git/
+
+# Documentation and examples
+docs/
+examples/
+tests/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Any tarball files generated during npm pack
+*.tgz
+
+# Local setup files
+.env*
+.npmrc 

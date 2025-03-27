@@ -18,4 +18,4 @@ services:
       - NODE_ENV=production
     restart: unless-stopped
     # Add any additional environment variables or command arguments here
-    # command: --metamcp-api-key your-api-key --metamcp-api-base-url your-base-url
+    # command: --pluggedin-api-key your-api-key --pluggedin-api-base-url your-base-url

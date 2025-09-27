@@ -529,6 +529,10 @@ The plugged.in MCP Proxy Server is designed to work seamlessly with the [plugged
 - [Claude Desktop Documentation](https://docs.anthropic.com/claude/docs/claude-desktop)
 - [Cline Documentation](https://docs.cline.bot/)
 
+### Alternative MCP Orchestrators
+
+- [NCP (Natural Context Protocol)](https://github.com/portel-dev/ncp) - A complementary MCP orchestrator focused on performance optimization. While plugged.in provides comprehensive web-based management and RAG capabilities, NCP specializes in token overhead reduction (94.8% savings) and O(1) complexity scaling. Perfect for users who need both advanced management features and high-performance optimization.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

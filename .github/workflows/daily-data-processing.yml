@@ -1,0 +1,157 @@
+name: Daily Data Processing Pipeline
+
+# Description: Automated daily data processing pipeline that processes input CSV files
+# from /data/input/ and outputs processed results to /data/output/.
+# Scheduled to run daily at 10:36 AM for continuous data transformation and analysis.
+
+on:
+  schedule:
+    # Run daily at 10:36 AM EST (15:36 UTC in winter, 14:36 UTC in summer - using 15:36 UTC)
+    - cron: '36 15 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  WORKSPACE_URL: 'https://your-databricks-workspace.cloud.databricks.com'
+  NOTEBOOK_PATH: '/Workspace/Users/scarmonit@gmail.com/Sample_Data_Processing_Notebook'
+  INPUT_PATH: '/data/input/sample_data.csv'
+  OUTPUT_PATH: '/data/output/processed_data.csv'
+  NOTIFICATION_EMAIL: 'scarmonit@gmail.com'
+
+jobs:
+  data-processing:
+    name: Data Processing Task
+    runs-on: ubuntu-latest
+    timeout-minutes: 0 # No timeout (as per requirement)
+    
+    # Tags for the workflow
+    env:
+      ENVIRONMENT: Production
+      TYPE: Automated
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Send start notification email
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: 'Pipeline Started: Daily Data Processing'
+          to: ${{ env.NOTIFICATION_EMAIL }}
+          from: 'GitHub Actions <noreply@github.com>'
+          body: |
+            Daily Data Processing Pipeline has started.
+            
+            Job: ${{ github.job }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Triggered by: ${{ github.event_name }}
+            Repository: ${{ github.repository }}
+            
+            Timestamp: ${{ github.event.head_commit.timestamp }}
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Install Databricks CLI
+        run: |
+          pip install databricks-cli
+      
+      - name: Configure Databricks CLI
+        run: |
+          echo "[DEFAULT]" > ~/.databrickscfg
+          echo "host = ${{ env.WORKSPACE_URL }}" >> ~/.databrickscfg
+          echo "token = ${{ secrets.DATABRICKS_TOKEN }}" >> ~/.databrickscfg
+      
+      - name: Execute Data Processing Notebook (with retries)
+        id: notebook_execution
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 0
+          max_attempts: 3
+          retry_wait_seconds: 300 # 5 minutes between retries (300 seconds)
+          retry_on: error
+          command: |
+            # Execute the notebook using Databricks CLI
+            databricks workspace export \
+              "${{ env.NOTEBOOK_PATH }}" \
+              /tmp/notebook.py
+            
+            # Run the notebook with parameters
+            echo "Processing data with parameters:"
+            echo "Input Path: ${{ env.INPUT_PATH }}"
+            echo "Output Path: ${{ env.OUTPUT_PATH }}"
+            
+            # This is a placeholder - in production, you would use:
+            # databricks jobs run-now --job-id <job-id>
+            # OR use databricks runs submit with the notebook path and parameters
+            
+            databricks runs submit \
+              --run-name "Daily_Data_Processing_$(date +%Y%m%d_%H%M%S)" \
+              --notebook-task '{
+                "notebook_path": "'"${{ env.NOTEBOOK_PATH }}"'",
+                "base_parameters": {
+                  "input_path": "'"${{ env.INPUT_PATH }}"'",
+                  "output_path": "'"${{ env.OUTPUT_PATH }}"'"
+                },
+                "source": "WORKSPACE"
+              }' \
+              --new-cluster '{
+                "spark_version": "latest-stable",
+                "node_type_id": "i3.xlarge",
+                "num_workers": 2
+              }'
+      
+      - name: Send failure notification email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '❌ Pipeline Failed: Daily Data Processing'
+          to: ${{ env.NOTIFICATION_EMAIL }}
+          from: 'GitHub Actions <noreply@github.com>'
+          body: |
+            Daily Data Processing Pipeline has FAILED.
+            
+            Job: ${{ github.job }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Please check the logs for details.
+            
+            Timestamp: ${{ github.event.head_commit.timestamp }}
+      
+      - name: Send skipped/cancelled notification email
+        if: cancelled()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '⚠️ Pipeline Cancelled: Daily Data Processing'
+          to: ${{ env.NOTIFICATION_EMAIL }}
+          from: 'GitHub Actions <noreply@github.com>'
+          body: |
+            Daily Data Processing Pipeline was CANCELLED.
+            
+            Job: ${{ github.job }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Timestamp: ${{ github.event.head_commit.timestamp }}
+
+concurrency:
+  group: data-processing-pipeline
+  cancel-in-progress: false # Ensures max 1 concurrent run

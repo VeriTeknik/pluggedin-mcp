@@ -8,7 +8,7 @@ on:
   schedule:
     # Run daily at 10:36 AM EST (15:36 UTC in winter, 14:36 UTC in summer - using 15:36 UTC)
     - cron: '36 15 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:  # Allow manual trigger
 
 env:
   WORKSPACE_URL: 'https://your-databricks-workspace.cloud.databricks.com'
@@ -21,7 +21,7 @@ jobs:
   data-processing:
     name: Data Processing Task
     runs-on: ubuntu-latest
-    timeout-minutes: 0 # No timeout (as per requirement)
+    timeout-minutes: 360  # 6 hours max timeout for safety (changed from 0 which is invalid)
     
     # Tags for the workflow
     env:
@@ -30,17 +30,45 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1 - pinned to SHA
+      
+      # ENHANCEMENT 1: Add health check and input validation
+      - name: Validate environment configuration
+        run: |
+          echo "=== Configuration Validation ==="
+          echo "Workspace URL: ${{ env.WORKSPACE_URL }}"
+          echo "Notebook Path: ${{ env.NOTEBOOK_PATH }}"
+          echo "Input Path: ${{ env.INPUT_PATH }}"
+          echo "Output Path: ${{ env.OUTPUT_PATH }}"
+          echo "Notification Email: ${{ env.NOTIFICATION_EMAIL }}"
+          
+          # Validate required secrets are set
+          if [ -z "${{ secrets.DATABRICKS_TOKEN }}" ]; then
+            echo "ERROR: DATABRICKS_TOKEN secret is not set"
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.EMAIL_USERNAME }}" ]; then
+            echo "ERROR: EMAIL_USERNAME secret is not set"
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.EMAIL_PASSWORD }}" ]; then
+            echo "ERROR: EMAIL_PASSWORD secret is not set"
+            exit 1
+          fi
+          
+          echo "✓ All secrets validated successfully"
       
       - name: Send start notification email
         if: always()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde  # v3.12.0 - pinned to SHA
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: 'Pipeline Started: Daily Data Processing'
+          subject: '🚀 Pipeline Started: Daily Data Processing'
           to: ${{ env.NOTIFICATION_EMAIL }}
           from: 'GitHub Actions <noreply@github.com>'
           body: |
@@ -49,51 +77,92 @@ jobs:
             Job: ${{ github.job }}
             Workflow: ${{ github.workflow }}
             Run ID: ${{ github.run_id }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             Triggered by: ${{ github.event_name }}
             Repository: ${{ github.repository }}
+            Branch: ${{ github.ref_name }}
+            
+            Configuration:
+            - Workspace: ${{ env.WORKSPACE_URL }}
+            - Notebook: ${{ env.NOTEBOOK_PATH }}
+            - Input: ${{ env.INPUT_PATH }}
+            - Output: ${{ env.OUTPUT_PATH }}
             
             Timestamp: ${{ github.event.head_commit.timestamp }}
       
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0 - pinned to SHA
         with:
-          python-version: '3.x'
+          python-version: '3.11'  # Specify exact version instead of '3.x'
       
       - name: Install Databricks CLI
         run: |
+          echo "=== Installing Databricks CLI ==="
+          pip install --upgrade pip
           pip install databricks-cli
+          databricks --version
+          echo "✓ Databricks CLI installed successfully"
       
       - name: Configure Databricks CLI
         run: |
+          echo "=== Configuring Databricks CLI ==="
           echo "[DEFAULT]" > ~/.databrickscfg
           echo "host = ${{ env.WORKSPACE_URL }}" >> ~/.databrickscfg
           echo "token = ${{ secrets.DATABRICKS_TOKEN }}" >> ~/.databrickscfg
+          chmod 600 ~/.databrickscfg
+          echo "✓ Databricks CLI configured successfully"
       
+      # ENHANCEMENT 2: Add connection health check before execution
+      - name: Test Databricks connectivity
+        run: |
+          echo "=== Testing Databricks Connection ==="
+          if databricks workspace list / --profile DEFAULT > /dev/null 2>&1; then
+            echo "✓ Successfully connected to Databricks workspace"
+          else
+            echo "ERROR: Failed to connect to Databricks workspace"
+            echo "Please verify DATABRICKS_TOKEN and WORKSPACE_URL"
+            exit 1
+          fi
+      
+      # ENHANCEMENT 3: Enhanced logging and error handling
       - name: Execute Data Processing Notebook (with retries)
         id: notebook_execution
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@7152eba30c6575329ac0576536151eff5711479f  # v3.0.0 - pinned to SHA
         with:
-          timeout_minutes: 0
+          timeout_minutes: 300  # 5 hours max per attempt
           max_attempts: 3
-          retry_wait_seconds: 300 # 5 minutes between retries (300 seconds)
+          retry_wait_seconds: 300  # 5 minutes between retries (300 seconds)
           retry_on: error
           command: |
+            echo "=== Starting Data Processing Execution ==="
+            echo "Attempt: ${{ github.run_attempt }}"
+            echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            
             # Execute the notebook using Databricks CLI
+            echo "Exporting notebook from workspace..."
             databricks workspace export \
               "${{ env.NOTEBOOK_PATH }}" \
               /tmp/notebook.py
             
+            if [ ! -f /tmp/notebook.py ]; then
+              echo "ERROR: Failed to export notebook"
+              exit 1
+            fi
+            
+            echo "✓ Notebook exported successfully"
+            
             # Run the notebook with parameters
-            echo "Processing data with parameters:"
+            echo "=== Processing data with parameters ==="
             echo "Input Path: ${{ env.INPUT_PATH }}"
             echo "Output Path: ${{ env.OUTPUT_PATH }}"
             
-            # This is a placeholder - in production, you would use:
-            # databricks jobs run-now --job-id <job-id>
-            # OR use databricks runs submit with the notebook path and parameters
+            RUN_NAME="Daily_Data_Processing_$(date +%Y%m%d_%H%M%S)"
+            echo "Run Name: $RUN_NAME"
             
-            databricks runs submit \
-              --run-name "Daily_Data_Processing_$(date +%Y%m%d_%H%M%S)" \
+            # Submit the job and capture output
+            echo "Submitting Databricks job..."
+            SUBMIT_OUTPUT=$(databricks runs submit \
+              --run-name "$RUN_NAME" \
               --notebook-task '{
                 "notebook_path": "'"${{ env.NOTEBOOK_PATH }}"'",
                 "base_parameters": {
@@ -103,14 +172,85 @@ jobs:
                 "source": "WORKSPACE"
               }' \
               --new-cluster '{
-                "spark_version": "latest-stable",
+                "spark_version": "13.3.x-scala2.12",
                 "node_type_id": "i3.xlarge",
-                "num_workers": 2
-              }'
+                "num_workers": 2,
+                "spark_conf": {
+                  "spark.databricks.delta.preview.enabled": "true"
+                }
+              }' 2>&1)
+            
+            echo "$SUBMIT_OUTPUT"
+            
+            # Extract run ID from output
+            RUN_ID=$(echo "$SUBMIT_OUTPUT" | grep -oP '"run_id":\s*\K[0-9]+')
+            
+            if [ -z "$RUN_ID" ]; then
+              echo "ERROR: Failed to submit job or extract run ID"
+              exit 1
+            fi
+            
+            echo "✓ Job submitted successfully with Run ID: $RUN_ID"
+            echo "Monitoring job execution..."
+            
+            # Monitor job status
+            MAX_WAIT=14400  # 4 hours in seconds
+            ELAPSED=0
+            POLL_INTERVAL=30
+            
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              STATUS_OUTPUT=$(databricks runs get --run-id $RUN_ID 2>&1)
+              LIFE_CYCLE_STATE=$(echo "$STATUS_OUTPUT" | grep -oP '"life_cycle_state":\s*"\K[^"]+' | head -1)
+              RESULT_STATE=$(echo "$STATUS_OUTPUT" | grep -oP '"result_state":\s*"\K[^"]+' | head -1)
+              
+              echo "[$(date -u +%H:%M:%S)] Status: $LIFE_CYCLE_STATE | Result: $RESULT_STATE"
+              
+              if [ "$LIFE_CYCLE_STATE" = "TERMINATED" ]; then
+                if [ "$RESULT_STATE" = "SUCCESS" ]; then
+                  echo "✓ Job completed successfully!"
+                  exit 0
+                else
+                  echo "ERROR: Job failed with result state: $RESULT_STATE"
+                  exit 1
+                fi
+              fi
+              
+              sleep $POLL_INTERVAL
+              ELAPSED=$((ELAPSED + POLL_INTERVAL))
+            done
+            
+            echo "ERROR: Job execution timeout after $MAX_WAIT seconds"
+            exit 1
+      
+      # ENHANCEMENT 4: Success notification with details
+      - name: Send success notification email
+        if: success()
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde  # v3.12.0 - pinned to SHA
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: '✅ Pipeline Succeeded: Daily Data Processing'
+          to: ${{ env.NOTIFICATION_EMAIL }}
+          from: 'GitHub Actions <noreply@github.com>'
+          body: |
+            Daily Data Processing Pipeline completed successfully!
+            
+            Job: ${{ github.job }}
+            Workflow: ${{ github.workflow }}
+            Run ID: ${{ github.run_id }}
+            Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Configuration:
+            - Input: ${{ env.INPUT_PATH }}
+            - Output: ${{ env.OUTPUT_PATH }}
+            
+            Timestamp: ${{ github.event.head_commit.timestamp }}
       
       - name: Send failure notification email
         if: failure()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde  # v3.12.0 - pinned to SHA
         with:
           server_address: smtp.gmail.com
           server_port: 587
@@ -126,14 +266,21 @@ jobs:
             Workflow: ${{ github.workflow }}
             Run ID: ${{ github.run_id }}
             Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Attempt: ${{ github.run_attempt }}
             
             Please check the logs for details.
+            
+            Configuration:
+            - Workspace: ${{ env.WORKSPACE_URL }}
+            - Notebook: ${{ env.NOTEBOOK_PATH }}
+            - Input: ${{ env.INPUT_PATH }}
+            - Output: ${{ env.OUTPUT_PATH }}
             
             Timestamp: ${{ github.event.head_commit.timestamp }}
       
       - name: Send skipped/cancelled notification email
         if: cancelled()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@2cea9617b09d79a095af21254fbcb7ae95903dde  # v3.12.0 - pinned to SHA
         with:
           server_address: smtp.gmail.com
           server_port: 587
@@ -154,4 +301,4 @@ jobs:
 
 concurrency:
   group: data-processing-pipeline
-  cancel-in-progress: false # Ensures max 1 concurrent run
+  cancel-in-progress: false  # Ensures max 1 concurrent run

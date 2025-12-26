@@ -34,7 +34,7 @@
     "@modelcontextprotocol/sdk": "^1.24.3",
     "axios": "^1.12.2",
     "commander": "^14.0.2",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "quick-lru": "^7.3.0",
     "sanitize-html": "^2.17.0",
     "slugify": "^1.6.6",

@@ -131,4 +131,4 @@ dist
 
 dist/**/*
 /memory-bank
-.DS_Store
+.DS_Store.npmrc

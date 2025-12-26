@@ -163,9 +163,8 @@ export const createPluggedinMCPClient = (
     },
     {
       capabilities: {
-        prompts: {},
-        resources: { subscribe: true },
-        tools: {},
+        roots: { listChanged: true },
+        sampling: {},
       },
     }
   );

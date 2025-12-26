@@ -35,12 +35,15 @@ import {
   ReadResourceRequestSchema,
   Tool,
   ListPromptsResultSchema,
+  ListPromptsResult,
   ListResourcesResultSchema,
+  ListResourcesResult,
   ReadResourceResultSchema,
   ListResourceTemplatesRequestSchema,
   ResourceTemplate,
   CompatibilityCallToolResultSchema,
   GetPromptResultSchema,
+  GetPromptResult,
   PromptMessage,
   PingRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -440,7 +443,6 @@ export const createServer = async () => {
              const toolWithMetadata: any = {
                ...rest,
                metadata: {
-                 ...(rest.metadata || {}),
                  server: _serverName || _serverUuid,
                  instructions: context.rawInstructions,
                  constraints: context.constraints,
@@ -1947,7 +1949,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
           // Return the formatted messages
           return {
             messages: messages,
-          } as z.infer<typeof GetPromptResultSchema>; // Ensure correct type
+          } as GetPromptResult; // Ensure correct type
 
         } catch (apiError: unknown) {
            const errorMsg = axios.isAxiosError(apiError)
@@ -2099,7 +2101,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
     const promptsApiUrl = `${baseUrl}/api/prompts`;
 
     // Only fetch standard prompts - custom instructions are now auto-injected via tool metadata
-    const promptsResponse = await axios.get<z.infer<typeof ListPromptsResultSchema>["prompts"]>(promptsApiUrl, {
+    const promptsResponse = await axios.get<ListPromptsResult["prompts"]>(promptsApiUrl, {
       headers: { Authorization: `Bearer ${apiKey}` },
       timeout: 10000,
     });
@@ -2139,7 +2141,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
 
     const apiUrl = `${baseUrl}/api/resources`; // Assuming this is the correct endpoint
 
-    const response = await axios.get<z.infer<typeof ListResourcesResultSchema>["resources"]>(apiUrl, {
+    const response = await axios.get<ListResourcesResult["resources"]>(apiUrl, {
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },

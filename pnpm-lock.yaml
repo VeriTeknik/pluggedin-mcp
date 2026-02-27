@@ -5,10 +5,10 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  hono@<4.12.0: '>=4.12.0'
-  qs@<6.14.2: '>=6.14.2'
-  ajv@>=8.0.0 <8.18.0: '>=8.18.0'
-  vite@>=7.0.0 <7.0.8: '>=7.0.8'
+  hono@<4.12.0: ^4.12.0
+  qs@<6.14.2: ^6.14.2
+  ajv@>=8.0.0 <8.18.0: ^8.18.0
+  vite@>=7.0.0 <7.0.8: ^7.0.8
 
 importers:
 
@@ -241,7 +241,7 @@ packages:
     resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: '>=4.12.0'
+      hono: ^4.12.0
 
   '@jridgewell/sourcemap-codec@1.5.4':
     resolution: {integrity: sha512-VT2+G1VQs/9oz078bLrYbecdZKs912zQlkelYpuf+SXF+QvZDYJlbx/LSx+meSAwdDFnF8FVXW92AVjjkVmgFw==}
@@ -439,7 +439,7 @@ packages:
     resolution: {integrity: sha512-46ryTE9RZO/rfDd7pEqFl7etuyzekzEhUbTW3BvmeO/BcCMEgq59BKhek3dXDWgAj4oMK6OZi+vRr1wPW6qjEQ==}
     peerDependencies:
       msw: ^2.4.9
-      vite: '>=7.0.8'
+      vite: ^7.0.8
     peerDependenciesMeta:
       msw:
         optional: true
@@ -473,7 +473,7 @@ packages:
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
     peerDependencies:
-      ajv: '>=8.18.0'
+      ajv: ^8.18.0
     peerDependenciesMeta:
       ajv:
         optional: true

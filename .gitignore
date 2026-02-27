@@ -132,3 +132,4 @@ dist
 dist/**/*
 /memory-bank
 .DS_Store.npmrc
+package-lock.json

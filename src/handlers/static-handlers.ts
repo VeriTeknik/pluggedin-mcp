@@ -2041,7 +2041,7 @@ Set environment variables in your terminal before launching the editor.
           text += `===== ${detail.uuid} =====\n`;
           text += `Ring: ${detail.ringType} | Decay Stage: ${detail.decayStage}\n`;
           text += `Relevance: ${Math.round((detail.relevanceScore || 0) * 100)}%\n`;
-          if (detail.successScore !== null) text += `Success: ${Math.round(detail.successScore * 100)}%\n`;
+          if (detail.successScore != null && typeof detail.successScore === 'number') text += `Success: ${Math.round(detail.successScore * 100)}%\n`;
           text += `Reinforcements: ${detail.reinforcementCount || 0} | Accessed: ${detail.accessCount || 0} times\n`;
           text += `\nFull Content:\n${detail.contentFull || detail.contentSummary || detail.contentEssence || '(no content)'}\n`;
           if (detail.tags?.length) text += `Tags: ${detail.tags.join(', ')}\n`;

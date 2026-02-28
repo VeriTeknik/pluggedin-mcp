@@ -372,8 +372,8 @@ export const MemoryObserveInputSchema = z.object({
     'decision', 'success_pattern', 'failure_pattern', 'workflow_step',
     'insight', 'context_switch',
   ]).describe("Type of observation being recorded"),
-  content: z.string().max(10000)
-    .describe("The observation content to store in memory"),
+  content: z.string().max(50000)
+    .describe("The observation content to store in memory (max 50000 chars)"),
   outcome: z.enum(['success', 'failure', 'neutral']).optional()
     .describe("Outcome of the observation for success-gated memory promotion"),
   metadata: z.record(z.unknown()).optional()

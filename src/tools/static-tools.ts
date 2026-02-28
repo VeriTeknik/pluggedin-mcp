@@ -17,7 +17,12 @@ import {
   ClipboardDeleteInputSchema,
   ClipboardListInputSchema,
   ClipboardPushInputSchema,
-  ClipboardPopInputSchema
+  ClipboardPopInputSchema,
+  MemorySessionStartInputSchema,
+  MemorySessionEndInputSchema,
+  MemoryObserveInputSchema,
+  MemorySearchInputSchema,
+  MemoryDetailsInputSchema
 } from '../schemas/index.js';
 
 // Define the setup tool that works without API key
@@ -349,6 +354,105 @@ export const clipboardPopStaticTool: Tool = {
   }
 };
 
+// ===== Memory Tools =====
+
+const memorySessionStartSchema = zodToJsonSchema(MemorySessionStartInputSchema) as any;
+memorySessionStartSchema.examples = [{
+  content_session_id: "chat-thread-abc123"
+}, {
+  content_session_id: "agent-session-xyz",
+  agent_uuid: "550e8400-e29b-41d4-a716-446655440000"
+}];
+
+export const memorySessionStartStaticTool: Tool = {
+  name: "pluggedin_memory_session_start",
+  description: "Start a new memory session to begin capturing observations. Returns a session UUID and memory_session_id for subsequent operations.",
+  inputSchema: memorySessionStartSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
+const memorySessionEndSchema = zodToJsonSchema(MemorySessionEndInputSchema) as any;
+memorySessionEndSchema.examples = [{
+  memory_session_id: "ms_abc123def456"
+}];
+
+export const memorySessionEndStaticTool: Tool = {
+  name: "pluggedin_memory_session_end",
+  description: "End a memory session and trigger Z-report generation (AI-compressed session summary).",
+  inputSchema: memorySessionEndSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
+const memoryObserveSchema = zodToJsonSchema(MemoryObserveInputSchema) as any;
+memoryObserveSchema.examples = [{
+  session_uuid: "550e8400-e29b-41d4-a716-446655440000",
+  type: "tool_call",
+  content: "Called search API with query 'user authentication best practices'",
+  outcome: "success",
+  metadata: { tool_name: "web_search", mcp_server: "brave-search" }
+}, {
+  session_uuid: "550e8400-e29b-41d4-a716-446655440000",
+  type: "insight",
+  content: "JWT tokens should be stored in httpOnly cookies for XSS protection",
+  outcome: "success"
+}];
+
+export const memoryObserveStaticTool: Tool = {
+  name: "pluggedin_memory_observe",
+  description: "Record an observation during a memory session. Observations are classified by the Analytics Agent into memory ring types (procedures, practice, longterm, shocks).",
+  inputSchema: memoryObserveSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
+const memorySearchSchema = zodToJsonSchema(MemorySearchInputSchema) as any;
+memorySearchSchema.examples = [{
+  query: "how to deploy to kubernetes"
+}, {
+  query: "authentication patterns",
+  ring_types: ["procedures", "longterm"],
+  top_k: 5,
+  include_gut: true
+}];
+
+export const memorySearchStaticTool: Tool = {
+  name: "pluggedin_memory_search",
+  description: "Search memories using semantic similarity. Returns lightweight results (50-150 tokens each) for token-efficient progressive disclosure. Use pluggedin_memory_details for full content.",
+  inputSchema: memorySearchSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
+  }
+};
+
+const memoryDetailsSchema = zodToJsonSchema(MemoryDetailsInputSchema) as any;
+memoryDetailsSchema.examples = [{
+  memory_uuids: ["550e8400-e29b-41d4-a716-446655440000"]
+}];
+
+export const memoryDetailsStaticTool: Tool = {
+  name: "pluggedin_memory_details",
+  description: "Get full details for selected memories (progressive disclosure Layer 3). Use after pluggedin_memory_search to retrieve complete content for specific memories.",
+  inputSchema: memoryDetailsSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
+  }
+};
+
 // Array of all static tools for counting and iteration
 export const allStaticTools: Tool[] = [
   setupStaticTool,
@@ -369,6 +473,11 @@ export const allStaticTools: Tool[] = [
   clipboardListStaticTool,
   clipboardPushStaticTool,
   clipboardPopStaticTool,
+  memorySessionStartStaticTool,
+  memorySessionEndStaticTool,
+  memoryObserveStaticTool,
+  memorySearchStaticTool,
+  memoryDetailsStaticTool,
 ];
 
 // Export the count for use in mcp-proxy.ts

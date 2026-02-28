@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosResponse } from "axios";
 import { ToolExecutionResult } from "../types.js";
 import { 
   getPluggedinMCPApiKey, 
@@ -7,7 +7,7 @@ import {
   isDebugEnabled 
 } from "../utils.js";
 import { logMcpActivity, createExecutionTimer } from "../notification-logger.js";
-import { debugError } from "../debug-log.js";
+import { debugError, debugLog } from "../debug-log.js";
 import { getApiKeySetupMessage } from "./static-handlers-helpers.js";
 import {
   DiscoverToolsInputSchema,
@@ -28,7 +28,12 @@ import {
   ClipboardPushInputSchema,
   ClipboardPopInputSchema,
   ClipboardEntry,
-  MCP_CLIPBOARD_SOURCE
+  MCP_CLIPBOARD_SOURCE,
+  MemorySessionStartInputSchema,
+  MemorySessionEndInputSchema,
+  MemoryObserveInputSchema,
+  MemorySearchInputSchema,
+  MemoryDetailsInputSchema
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -58,7 +63,12 @@ import {
   clipboardDeleteStaticTool,
   clipboardListStaticTool,
   clipboardPushStaticTool,
-  clipboardPopStaticTool
+  clipboardPopStaticTool,
+  memorySessionStartStaticTool,
+  memorySessionEndStaticTool,
+  memoryObserveStaticTool,
+  memorySearchStaticTool,
+  memoryDetailsStaticTool
 } from '../tools/static-tools.js';
 
 // Type for tool to server mapping
@@ -1886,6 +1896,176 @@ Set environment variables in your terminal before launching the editor.
     }
   }
 
+  // ===== Memory Handlers =====
+
+  private async executeMemoryApiCall(
+    toolName: string,
+    failureMessage: string,
+    apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<AxiosResponse>,
+    formatResponse: (data: AxiosResponse['data']) => string
+  ): Promise<ToolExecutionResult> {
+    debugLog(`[CallTool Handler] Executing static tool: ${toolName}`);
+
+    const apiKey = getPluggedinMCPApiKey();
+    const baseUrl = getPluggedinMCPApiBaseUrl();
+    if (!apiKey || !baseUrl) {
+      return {
+        content: [{ type: "text", text: getApiKeySetupMessage(toolName) }],
+        isError: false
+      };
+    }
+
+    const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
+    const timer = createExecutionTimer();
+    try {
+      const response = await apiCall(baseUrl, headers);
+
+      logMcpActivity({
+        action: 'tool_call', serverName: 'Memory System', serverUuid: 'pluggedin_memory',
+        itemName: toolName, success: true, executionTime: timer.stop(),
+      }).catch(() => {});
+
+      return {
+        content: [{ type: "text", text: formatResponse(response.data) }],
+        isError: false,
+      };
+    } catch (apiError: unknown) {
+      logMcpActivity({
+        action: 'tool_call', serverName: 'Memory System', serverUuid: 'pluggedin_memory',
+        itemName: toolName, success: false,
+        errorMessage: apiError instanceof Error ? apiError.message : String(apiError), executionTime: timer.stop(),
+      }).catch(() => {});
+
+      let errorMsg = failureMessage;
+      if (axios.isAxiosError(apiError)) {
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 404:
+            errorMsg = 'Resource not found. The session or memory UUID may be invalid or expired.';
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
+        }
+      }
+      throw new Error(errorMsg);
+    }
+  }
+
+  private async handleMemorySessionStart(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemorySessionStartInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memorySessionStartStaticTool.name,
+      "Failed to start memory session",
+      (baseUrl, headers) => axios.post(`${baseUrl}/api/memory/sessions`, validatedArgs, { headers }),
+      (responseData) => {
+        const data = responseData.data;
+        return `Memory session started!\nSession UUID: ${data.uuid}\nMemory Session ID: ${data.memorySessionId}\n\nUse the session UUID for pluggedin_memory_observe calls, and the memory_session_id for pluggedin_memory_session_end.`;
+      }
+    );
+  }
+
+  private async handleMemorySessionEnd(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemorySessionEndInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memorySessionEndStaticTool.name,
+      "Failed to end memory session",
+      (baseUrl, headers) => axios.patch(
+        `${baseUrl}/api/memory/sessions/${validatedArgs.memory_session_id}`,
+        { action: 'end' },
+        { headers }
+      ),
+      () => "Memory session ended successfully.\nZ-report generation has been triggered and will process in the background."
+    );
+  }
+
+  private async handleMemoryObserve(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemoryObserveInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memoryObserveStaticTool.name,
+      "Failed to record observation",
+      (baseUrl, headers) => axios.post(
+        `${baseUrl}/api/memory/sessions/${validatedArgs.session_uuid}/observations`,
+        {
+          type: validatedArgs.type,
+          content: validatedArgs.content,
+          outcome: validatedArgs.outcome,
+          metadata: validatedArgs.metadata,
+        },
+        { headers }
+      ),
+      (responseData) => {
+        const data = responseData.data;
+        return `Observation recorded.\nUUID: ${data?.uuid || 'recorded'}\nType: ${validatedArgs.type}`;
+      }
+    );
+  }
+
+  private async handleMemorySearch(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemorySearchInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memorySearchStaticTool.name,
+      "Failed to search memories",
+      (baseUrl, headers) => axios.post(`${baseUrl}/api/memory/search`, validatedArgs, { headers }),
+      (responseData) => {
+        const results = responseData.data || [];
+        if (results.length === 0) {
+          return `No memories found for query: "${validatedArgs.query}"`;
+        }
+
+        let text = `Found ${results.length} memories for: "${validatedArgs.query}"\n\n`;
+        for (const result of results) {
+          text += `---\n`;
+          text += `UUID: ${result.uuid}\n`;
+          text += `Ring: ${result.ringType} | Decay: ${result.decayStage}\n`;
+          text += `Relevance: ${Math.round((result.relevanceScore || 0) * 100)}% | Similarity: ${Math.round((result.similarity || 0) * 100)}%\n`;
+          text += `Summary: ${result.summary || result.essence || '(no summary)'}\n`;
+          if (result.tags?.length) text += `Tags: ${result.tags.join(', ')}\n`;
+          text += `\n`;
+        }
+        text += `Use pluggedin_memory_details with specific UUIDs to get full content.`;
+        return text;
+      }
+    );
+  }
+
+  private async handleMemoryDetails(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemoryDetailsInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memoryDetailsStaticTool.name,
+      "Failed to get memory details",
+      (baseUrl, headers) => axios.post(
+        `${baseUrl}/api/memory/search/details`,
+        { memory_uuids: validatedArgs.memory_uuids },
+        { headers }
+      ),
+      (responseData) => {
+        const details = responseData.data || [];
+        if (details.length === 0) {
+          return "No details found for the specified memory UUIDs.";
+        }
+
+        let text = `Memory Details (${details.length} items):\n\n`;
+        for (const detail of details) {
+          text += `===== ${detail.uuid} =====\n`;
+          text += `Ring: ${detail.ringType} | Decay Stage: ${detail.decayStage}\n`;
+          text += `Relevance: ${Math.round((detail.relevanceScore || 0) * 100)}%\n`;
+          if (detail.successScore != null && typeof detail.successScore === 'number') text += `Success: ${Math.round(detail.successScore * 100)}%\n`;
+          text += `Reinforcements: ${detail.reinforcementCount || 0} | Accessed: ${detail.accessCount || 0} times\n`;
+          text += `\nFull Content:\n${detail.contentFull || detail.contentSummary || detail.contentEssence || '(no content)'}\n`;
+          if (detail.tags?.length) text += `Tags: ${detail.tags.join(', ')}\n`;
+          text += `\n`;
+        }
+        return text;
+      }
+    );
+  }
+
   // Main handler method
   async handleStaticTool(toolName: string, args: any): Promise<ToolExecutionResult | null> {
     switch (toolName) {
@@ -1925,6 +2105,16 @@ Set environment variables in your terminal before launching the editor.
         return this.handleClipboardPush(args);
       case clipboardPopStaticTool.name:
         return this.handleClipboardPop(args);
+      case memorySessionStartStaticTool.name:
+        return this.handleMemorySessionStart(args);
+      case memorySessionEndStaticTool.name:
+        return this.handleMemorySessionEnd(args);
+      case memoryObserveStaticTool.name:
+        return this.handleMemoryObserve(args);
+      case memorySearchStaticTool.name:
+        return this.handleMemorySearch(args);
+      case memoryDetailsStaticTool.name:
+        return this.handleMemoryDetails(args);
       default:
         return null; // Not a static tool
     }

@@ -349,3 +349,51 @@ export const ClipboardPushInputSchema = z.object({
 
 // Schema for popping from indexed clipboard (LIFO)
 export const ClipboardPopInputSchema = z.object({}).describe("Pop the highest-indexed entry from the clipboard (LIFO behavior).");
+
+// ===== Memory System Schemas =====
+
+export const MemorySessionStartInputSchema = z.object({
+  content_session_id: z.string().min(1)
+    .describe("External session ID (e.g., chat thread ID) to associate memory with"),
+  agent_uuid: z.string().uuid().optional()
+    .describe("Optional agent UUID if this session is agent-specific"),
+}).describe("Start a new memory session to begin capturing observations.");
+
+export const MemorySessionEndInputSchema = z.object({
+  memory_session_id: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, "Invalid memory session ID format")
+    .describe("The memory session ID returned from session start"),
+}).describe("End a memory session and trigger Z-report generation.");
+
+export const MemoryObserveInputSchema = z.object({
+  session_uuid: z.string().uuid()
+    .describe("UUID of the active memory session"),
+  type: z.enum([
+    'tool_call', 'tool_result', 'user_preference', 'error_pattern',
+    'decision', 'success_pattern', 'failure_pattern', 'workflow_step',
+    'insight', 'context_switch',
+  ]).describe("Type of observation being recorded"),
+  content: z.string().min(1).max(50000)
+    .describe("The observation content to store in memory (max 50000 chars)"),
+  outcome: z.enum(['success', 'failure', 'neutral']).optional()
+    .describe("Outcome of the observation for success-gated memory promotion"),
+  metadata: z.record(z.unknown()).optional()
+    .describe("Additional metadata (tool_name, mcp_server, error_code, etc.)"),
+}).describe("Record an observation during a memory session.");
+
+export const MemorySearchInputSchema = z.object({
+  query: z.string().min(1).max(1000)
+    .describe("Natural language query to search memories semantically"),
+  ring_types: z.array(z.enum(['procedures', 'practice', 'longterm', 'shocks'])).optional()
+    .describe("Filter by memory ring types"),
+  agent_uuid: z.string().uuid().optional()
+    .describe("Filter by specific agent"),
+  top_k: z.number().int().min(1).max(50).optional().default(10)
+    .describe("Maximum number of results to return"),
+  include_gut: z.boolean().optional().default(false)
+    .describe("Include collective wisdom (gut patterns) in results"),
+}).describe("Search memories using semantic similarity (progressive disclosure Layer 1).");
+
+export const MemoryDetailsInputSchema = z.object({
+  memory_uuids: z.array(z.string().uuid()).min(1).max(20)
+    .describe("UUIDs of memories to retrieve full details for"),
+}).describe("Get full details for selected memories (progressive disclosure Layer 3).");

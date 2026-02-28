@@ -77,6 +77,11 @@ import {
   clipboardListStaticTool,
   clipboardPushStaticTool,
   clipboardPopStaticTool,
+  memorySessionStartStaticTool,
+  memorySessionEndStaticTool,
+  memoryObserveStaticTool,
+  memorySearchStaticTool,
+  memoryDetailsStaticTool,
   STATIC_TOOLS_COUNT
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
@@ -356,7 +361,12 @@ export const createServer = async () => {
            clipboardDeleteStaticTool,
            clipboardListStaticTool,
            clipboardPushStaticTool,
-           clipboardPopStaticTool
+           clipboardPopStaticTool,
+           memorySessionStartStaticTool,
+           memorySessionEndStaticTool,
+           memoryObserveStaticTool,
+           memorySearchStaticTool,
+           memoryDetailsStaticTool
          ],
          nextCursor: undefined
        };
@@ -477,6 +487,11 @@ export const createServer = async () => {
          clipboardListStaticTool,
          clipboardPushStaticTool,
          clipboardPopStaticTool,
+         memorySessionStartStaticTool,
+         memorySessionEndStaticTool,
+         memoryObserveStaticTool,
+         memorySearchStaticTool,
+         memoryDetailsStaticTool,
          ...toolsForClient
        ];
 
@@ -635,8 +650,14 @@ export const createServer = async () => {
                         dataContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
                         dataContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
                         dataContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
+                        dataContent += `\n**Memory (5):**\n`;
+                        dataContent += `18. **pluggedin_memory_session_start** - Start a memory session\n`;
+                        dataContent += `19. **pluggedin_memory_session_end** - End session and trigger Z-report\n`;
+                        dataContent += `20. **pluggedin_memory_observe** - Record an observation during a session\n`;
+                        dataContent += `21. **pluggedin_memory_search** - Search memories semantically\n`;
+                        dataContent += `22. **pluggedin_memory_details** - Get full details for selected memories\n`;
                         dataContent += `\n`;
-                        
+
                         // Add dynamic tools section (from MCP servers)
                         if (toolsCount > 0) {
                             const tools = toolsResponse.data?.tools || toolsResponse.data || [];
@@ -724,7 +745,7 @@ export const createServer = async () => {
                     // Error checking cache, show static tools and proceed with discovery
 
                     // Show static tools even when cache check fails
-                    const staticToolsCount = 17;
+                    const staticToolsCount = STATIC_TOOLS_COUNT;
                     const cacheErrorMessage = `Cache check failed, showing static tools. Will run discovery for dynamic tools.\n\n`;
 
                     let staticContent = cacheErrorMessage;
@@ -734,6 +755,7 @@ export const createServer = async () => {
                     staticContent += `**Notifications (4):** pluggedin_send_notification, pluggedin_list_notifications, pluggedin_mark_notification_done, pluggedin_delete_notification\n`;
                     staticContent += `**Documents (5):** pluggedin_create_document, pluggedin_list_documents, pluggedin_search_documents, pluggedin_get_document, pluggedin_update_document\n`;
                     staticContent += `**Clipboard (7):** pluggedin_clipboard_set, pluggedin_clipboard_get, pluggedin_clipboard_delete, pluggedin_clipboard_list, pluggedin_clipboard_push, pluggedin_clipboard_pop\n`;
+                    staticContent += `**Memory (5):** pluggedin_memory_session_start, pluggedin_memory_session_end, pluggedin_memory_observe, pluggedin_memory_search, pluggedin_memory_details\n`;
                     staticContent += `\n## ⚡ Dynamic MCP Tools - From Connected Servers:\n`;
                     staticContent += `Cache check failed. Running discovery to find dynamic tools...\n\n`;
                     staticContent += `Note: You can call pluggedin_discover_tools again to see the updated results.`;
@@ -804,7 +826,7 @@ export const createServer = async () => {
                             const promptsCount = Array.isArray(promptsResponse.data) ? promptsResponse.data.length : 0;
                             const templatesCount = Array.isArray(templatesResponse.data) ? templatesResponse.data.length : 0;
 
-                            const staticToolsCount = 17; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
+                            const staticToolsCount = STATIC_TOOLS_COUNT;
                             const totalToolsCount = toolsCount + staticToolsCount;
 
                             const refreshMessage = server_uuid
@@ -837,8 +859,14 @@ export const createServer = async () => {
                             forceRefreshContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
                             forceRefreshContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
                             forceRefreshContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
+                            forceRefreshContent += `\n**Memory (5):**\n`;
+                            forceRefreshContent += `18. **pluggedin_memory_session_start** - Start a memory session\n`;
+                            forceRefreshContent += `19. **pluggedin_memory_session_end** - End session and trigger Z-report\n`;
+                            forceRefreshContent += `20. **pluggedin_memory_observe** - Record an observation during a session\n`;
+                            forceRefreshContent += `21. **pluggedin_memory_search** - Search memories semantically\n`;
+                            forceRefreshContent += `22. **pluggedin_memory_details** - Get full details for selected memories\n`;
                             forceRefreshContent += `\n`;
-                            
+
                             // Add dynamic tools section (from MCP servers)
                             if (toolsCount > 0) {
                                 const tools = toolsResponse.data?.tools || toolsResponse.data || [];
@@ -1399,29 +1427,11 @@ export const createServer = async () => {
             }
         }
 
-        // Handle static tools (documents and clipboard) using StaticToolHandlers
+        // Handle static tools (documents, clipboard, memory) using StaticToolHandlers
         const staticHandlers = new StaticToolHandlers(toolToServerMap, instructionToServerMap);
-        const staticTools = [
-            // Document tools
-            createDocumentStaticTool.name,
-            listDocumentsStaticTool.name,
-            searchDocumentsStaticTool.name,
-            getDocumentStaticTool.name,
-            updateDocumentStaticTool.name,
-            // Clipboard tools
-            clipboardSetStaticTool.name,
-            clipboardGetStaticTool.name,
-            clipboardDeleteStaticTool.name,
-            clipboardListStaticTool.name,
-            clipboardPushStaticTool.name,
-            clipboardPopStaticTool.name
-        ];
-
-        if (staticTools.includes(requestedToolName)) {
-            const result = await staticHandlers.handleStaticTool(requestedToolName, args);
-            if (result) {
-                return result;
-            }
+        const staticResult = await staticHandlers.handleStaticTool(requestedToolName, args);
+        if (staticResult) {
+            return staticResult;
         }
 
         // Look up the downstream tool in our map
@@ -1598,7 +1608,7 @@ export const createServer = async () => {
 
 The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple MCP servers and built-in tools. Here's what you can do:
 
-## 🔧 Built-in Static Tools (17 Total)
+## 🔧 Built-in Static Tools (22 Total)
 
 ### Discovery (1 tool)
 
@@ -1749,6 +1759,47 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Parameters**: None
 - **Usage**: Stack-like pop operation, removes and returns the last pushed entry
 
+### Memory (5 tools)
+
+#### 18. **pluggedin_memory_session_start**
+- **Purpose**: Start a new memory session to begin capturing observations
+- **Parameters**:
+  - \`content_session_id\` (required): External session/chat thread ID
+  - \`agent_uuid\` (optional): Agent UUID for agent-scoped memory
+- **Usage**: Returns a session UUID and memory_session_id for subsequent operations
+
+#### 19. **pluggedin_memory_session_end**
+- **Purpose**: End a memory session and trigger Z-report generation
+- **Parameters**:
+  - \`memory_session_id\` (required): The memory session ID from session start
+- **Usage**: Closes the session and generates an AI-compressed summary (Z-report)
+
+#### 20. **pluggedin_memory_observe**
+- **Purpose**: Record an observation during a memory session
+- **Parameters**:
+  - \`session_uuid\` (required): The session UUID
+  - \`type\` (required): tool_call, tool_result, user_preference, error_pattern, decision, success_pattern, failure_pattern, workflow_step, insight, or context_switch
+  - \`content\` (required): Observation content (max 50000 chars)
+  - \`outcome\` (optional): success, failure, or neutral
+  - \`metadata\` (optional): Additional context (tool name, MCP server, etc.)
+- **Usage**: Observations are classified by the Analytics Agent into memory ring types (procedures, practice, longterm, shocks)
+
+#### 21. **pluggedin_memory_search**
+- **Purpose**: Search memories using semantic similarity
+- **Parameters**:
+  - \`query\` (required): Search query text
+  - \`ring_types\` (optional): Filter by ring types (procedures, practice, longterm, shocks)
+  - \`top_k\` (optional): Number of results (default 10)
+  - \`include_gut\` (optional): Include collective wisdom patterns (default false)
+  - \`agent_uuid\` (optional): Filter by agent
+- **Usage**: Returns lightweight results (50-150 tokens each) for token-efficient progressive disclosure
+
+#### 22. **pluggedin_memory_details**
+- **Purpose**: Get full details for selected memories (progressive disclosure Layer 3)
+- **Parameters**:
+  - \`memory_uuids\` (required): Array of memory UUIDs to retrieve
+- **Usage**: Use after pluggedin_memory_search to retrieve complete content for specific memories
+
 ## 🔗 Proxy Features
 
 ### MCP Server Management
@@ -1765,6 +1816,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Document Library**: Full-featured document management with AI attribution and versioning
 - **Clipboard Storage**: Temporary storage for data sharing between tools and sessions
 - **Notification System**: Activity tracking and custom notifications with email delivery
+- **Long-Term Memory**: Cognitive memory system with sessions, observations, semantic search, and progressive disclosure
 
 ## 🚀 Getting Started
 
@@ -1775,6 +1827,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 5. **Manage Documents**: Use document tools to create, list, search, get, and update documents
 6. **Use Clipboard**: Store temporary data with clipboard tools for sharing between operations
 7. **Manage Notifications**: Send, list, mark as done, and delete notifications
+8. **Use Memory**: Start sessions, record observations, search memories with semantic similarity
 
 ## 📊 Monitoring
 

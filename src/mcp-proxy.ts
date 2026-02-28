@@ -1778,7 +1778,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Purpose**: Record an observation during a memory session
 - **Parameters**:
   - \`session_uuid\` (required): The session UUID
-  - \`type\` (required): tool_call, tool_result, user_preference, error_pattern, decision, success_pattern, failure_pattern, workflow_step, or insight
+  - \`type\` (required): tool_call, tool_result, user_preference, error_pattern, decision, success_pattern, failure_pattern, workflow_step, insight, or context_switch
   - \`content\` (required): Observation content (max 50000 chars)
   - \`outcome\` (optional): success, failure, or neutral
   - \`metadata\` (optional): Additional context (tool name, MCP server, etc.)

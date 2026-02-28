@@ -7,7 +7,7 @@ import {
   isDebugEnabled 
 } from "../utils.js";
 import { logMcpActivity, createExecutionTimer } from "../notification-logger.js";
-import { debugError } from "../debug-log.js";
+import { debugError, debugLog } from "../debug-log.js";
 import { getApiKeySetupMessage } from "./static-handlers-helpers.js";
 import {
   DiscoverToolsInputSchema,
@@ -1904,7 +1904,7 @@ Set environment variables in your terminal before launching the editor.
     apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<any>,
     formatResponse: (data: any) => string
   ): Promise<ToolExecutionResult> {
-    debugError(`[CallTool Handler] Executing static tool: ${toolName}`);
+    debugLog(`[CallTool Handler] Executing static tool: ${toolName}`);
 
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
@@ -1936,9 +1936,20 @@ Set environment variables in your terminal before launching the editor.
         errorMessage: apiError instanceof Error ? apiError.message : String(apiError), executionTime: timer.stop(),
       }).catch(() => {});
 
-      const errorMsg = axios.isAxiosError(apiError)
-        ? (apiError.response?.data?.error || apiError.message)
-        : failureMessage;
+      let errorMsg = failureMessage;
+      if (axios.isAxiosError(apiError)) {
+        const status = apiError.response?.status;
+        switch (status) {
+          case 401:
+            errorMsg = 'Authentication failed. Check your API key.';
+            break;
+          case 429:
+            errorMsg = 'Rate limit exceeded. Please try again later.';
+            break;
+          default:
+            errorMsg = apiError.response?.data?.error || apiError.message;
+        }
+      }
       throw new Error(errorMsg);
     }
   }

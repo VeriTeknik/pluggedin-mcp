@@ -353,14 +353,14 @@ export const ClipboardPopInputSchema = z.object({}).describe("Pop the highest-in
 // ===== Memory System Schemas =====
 
 export const MemorySessionStartInputSchema = z.object({
-  content_session_id: z.string()
+  content_session_id: z.string().min(1)
     .describe("External session ID (e.g., chat thread ID) to associate memory with"),
   agent_uuid: z.string().uuid().optional()
     .describe("Optional agent UUID if this session is agent-specific"),
 }).describe("Start a new memory session to begin capturing observations.");
 
 export const MemorySessionEndInputSchema = z.object({
-  memory_session_id: z.string()
+  memory_session_id: z.string().min(1).regex(/^[a-zA-Z0-9_-]+$/, "Invalid memory session ID format")
     .describe("The memory session ID returned from session start"),
 }).describe("End a memory session and trigger Z-report generation.");
 
@@ -372,7 +372,7 @@ export const MemoryObserveInputSchema = z.object({
     'decision', 'success_pattern', 'failure_pattern', 'workflow_step',
     'insight', 'context_switch',
   ]).describe("Type of observation being recorded"),
-  content: z.string().max(50000)
+  content: z.string().min(1).max(50000)
     .describe("The observation content to store in memory (max 50000 chars)"),
   outcome: z.enum(['success', 'failure', 'neutral']).optional()
     .describe("Outcome of the observation for success-gated memory promotion"),

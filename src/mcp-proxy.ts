@@ -1608,7 +1608,7 @@ export const createServer = async () => {
 
 The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple MCP servers and built-in tools. Here's what you can do:
 
-## 🔧 Built-in Static Tools (17 Total)
+## 🔧 Built-in Static Tools (22 Total)
 
 ### Discovery (1 tool)
 
@@ -1759,6 +1759,47 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Parameters**: None
 - **Usage**: Stack-like pop operation, removes and returns the last pushed entry
 
+### Memory (5 tools)
+
+#### 18. **pluggedin_memory_session_start**
+- **Purpose**: Start a new memory session to begin capturing observations
+- **Parameters**:
+  - \`content_session_id\` (required): External session/chat thread ID
+  - \`agent_uuid\` (optional): Agent UUID for agent-scoped memory
+- **Usage**: Returns a session UUID and memory_session_id for subsequent operations
+
+#### 19. **pluggedin_memory_session_end**
+- **Purpose**: End a memory session and trigger Z-report generation
+- **Parameters**:
+  - \`memory_session_id\` (required): The memory session ID from session start
+- **Usage**: Closes the session and generates an AI-compressed summary (Z-report)
+
+#### 20. **pluggedin_memory_observe**
+- **Purpose**: Record an observation during a memory session
+- **Parameters**:
+  - \`session_uuid\` (required): The session UUID
+  - \`type\` (required): tool_call, tool_result, user_preference, error_pattern, decision, success_pattern, failure_pattern, workflow_step, or insight
+  - \`content\` (required): Observation content (max 50000 chars)
+  - \`outcome\` (optional): success, failure, or neutral
+  - \`metadata\` (optional): Additional context (tool name, MCP server, etc.)
+- **Usage**: Observations are classified by the Analytics Agent into memory ring types (procedures, practice, longterm, shocks)
+
+#### 21. **pluggedin_memory_search**
+- **Purpose**: Search memories using semantic similarity
+- **Parameters**:
+  - \`query\` (required): Search query text
+  - \`ring_types\` (optional): Filter by ring types (procedures, practice, longterm, shocks)
+  - \`top_k\` (optional): Number of results (default 10)
+  - \`include_gut\` (optional): Include collective wisdom patterns (default false)
+  - \`agent_uuid\` (optional): Filter by agent
+- **Usage**: Returns lightweight results (50-150 tokens each) for token-efficient progressive disclosure
+
+#### 22. **pluggedin_memory_details**
+- **Purpose**: Get full details for selected memories (progressive disclosure Layer 3)
+- **Parameters**:
+  - \`memory_uuids\` (required): Array of memory UUIDs to retrieve
+- **Usage**: Use after pluggedin_memory_search to retrieve complete content for specific memories
+
 ## 🔗 Proxy Features
 
 ### MCP Server Management
@@ -1775,6 +1816,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 - **Document Library**: Full-featured document management with AI attribution and versioning
 - **Clipboard Storage**: Temporary storage for data sharing between tools and sessions
 - **Notification System**: Activity tracking and custom notifications with email delivery
+- **Long-Term Memory**: Cognitive memory system with sessions, observations, semantic search, and progressive disclosure
 
 ## 🚀 Getting Started
 
@@ -1785,6 +1827,7 @@ The Plugged.in MCP Proxy is a powerful gateway that provides access to multiple 
 5. **Manage Documents**: Use document tools to create, list, search, get, and update documents
 6. **Use Clipboard**: Store temporary data with clipboard tools for sharing between operations
 7. **Manage Notifications**: Send, list, mark as done, and delete notifications
+8. **Use Memory**: Start sessions, record observations, search memories with semantic similarity
 
 ## 📊 Monitoring
 

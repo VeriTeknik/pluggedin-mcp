@@ -77,6 +77,11 @@ import {
   clipboardListStaticTool,
   clipboardPushStaticTool,
   clipboardPopStaticTool,
+  memorySessionStartStaticTool,
+  memorySessionEndStaticTool,
+  memoryObserveStaticTool,
+  memorySearchStaticTool,
+  memoryDetailsStaticTool,
   STATIC_TOOLS_COUNT
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
@@ -356,7 +361,12 @@ export const createServer = async () => {
            clipboardDeleteStaticTool,
            clipboardListStaticTool,
            clipboardPushStaticTool,
-           clipboardPopStaticTool
+           clipboardPopStaticTool,
+           memorySessionStartStaticTool,
+           memorySessionEndStaticTool,
+           memoryObserveStaticTool,
+           memorySearchStaticTool,
+           memoryDetailsStaticTool
          ],
          nextCursor: undefined
        };
@@ -477,6 +487,11 @@ export const createServer = async () => {
          clipboardListStaticTool,
          clipboardPushStaticTool,
          clipboardPopStaticTool,
+         memorySessionStartStaticTool,
+         memorySessionEndStaticTool,
+         memoryObserveStaticTool,
+         memorySearchStaticTool,
+         memoryDetailsStaticTool,
          ...toolsForClient
        ];
 
@@ -635,8 +650,14 @@ export const createServer = async () => {
                         dataContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
                         dataContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
                         dataContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
+                        dataContent += `\n**Memory (5):**\n`;
+                        dataContent += `18. **pluggedin_memory_session_start** - Start a memory session\n`;
+                        dataContent += `19. **pluggedin_memory_session_end** - End session and trigger Z-report\n`;
+                        dataContent += `20. **pluggedin_memory_observe** - Record an observation during a session\n`;
+                        dataContent += `21. **pluggedin_memory_search** - Search memories semantically\n`;
+                        dataContent += `22. **pluggedin_memory_details** - Get full details for selected memories\n`;
                         dataContent += `\n`;
-                        
+
                         // Add dynamic tools section (from MCP servers)
                         if (toolsCount > 0) {
                             const tools = toolsResponse.data?.tools || toolsResponse.data || [];
@@ -724,7 +745,7 @@ export const createServer = async () => {
                     // Error checking cache, show static tools and proceed with discovery
 
                     // Show static tools even when cache check fails
-                    const staticToolsCount = 17;
+                    const staticToolsCount = STATIC_TOOLS_COUNT;
                     const cacheErrorMessage = `Cache check failed, showing static tools. Will run discovery for dynamic tools.\n\n`;
 
                     let staticContent = cacheErrorMessage;
@@ -734,6 +755,7 @@ export const createServer = async () => {
                     staticContent += `**Notifications (4):** pluggedin_send_notification, pluggedin_list_notifications, pluggedin_mark_notification_done, pluggedin_delete_notification\n`;
                     staticContent += `**Documents (5):** pluggedin_create_document, pluggedin_list_documents, pluggedin_search_documents, pluggedin_get_document, pluggedin_update_document\n`;
                     staticContent += `**Clipboard (7):** pluggedin_clipboard_set, pluggedin_clipboard_get, pluggedin_clipboard_delete, pluggedin_clipboard_list, pluggedin_clipboard_push, pluggedin_clipboard_pop\n`;
+                    staticContent += `**Memory (5):** pluggedin_memory_session_start, pluggedin_memory_session_end, pluggedin_memory_observe, pluggedin_memory_search, pluggedin_memory_details\n`;
                     staticContent += `\n## ⚡ Dynamic MCP Tools - From Connected Servers:\n`;
                     staticContent += `Cache check failed. Running discovery to find dynamic tools...\n\n`;
                     staticContent += `Note: You can call pluggedin_discover_tools again to see the updated results.`;
@@ -804,7 +826,7 @@ export const createServer = async () => {
                             const promptsCount = Array.isArray(promptsResponse.data) ? promptsResponse.data.length : 0;
                             const templatesCount = Array.isArray(templatesResponse.data) ? templatesResponse.data.length : 0;
 
-                            const staticToolsCount = 17; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
+                            const staticToolsCount = STATIC_TOOLS_COUNT; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
                             const totalToolsCount = toolsCount + staticToolsCount;
 
                             const refreshMessage = server_uuid
@@ -837,8 +859,14 @@ export const createServer = async () => {
                             forceRefreshContent += `15. **pluggedin_clipboard_list** - List all clipboard entries (metadata only)\n`;
                             forceRefreshContent += `16. **pluggedin_clipboard_push** - Push to indexed clipboard (auto-increment)\n`;
                             forceRefreshContent += `17. **pluggedin_clipboard_pop** - Pop highest-indexed entry (LIFO)\n`;
+                            forceRefreshContent += `\n**Memory (5):**\n`;
+                            forceRefreshContent += `18. **pluggedin_memory_session_start** - Start a memory session\n`;
+                            forceRefreshContent += `19. **pluggedin_memory_session_end** - End session and trigger Z-report\n`;
+                            forceRefreshContent += `20. **pluggedin_memory_observe** - Record an observation during a session\n`;
+                            forceRefreshContent += `21. **pluggedin_memory_search** - Search memories semantically\n`;
+                            forceRefreshContent += `22. **pluggedin_memory_details** - Get full details for selected memories\n`;
                             forceRefreshContent += `\n`;
-                            
+
                             // Add dynamic tools section (from MCP servers)
                             if (toolsCount > 0) {
                                 const tools = toolsResponse.data?.tools || toolsResponse.data || [];
@@ -1399,29 +1427,11 @@ export const createServer = async () => {
             }
         }
 
-        // Handle static tools (documents and clipboard) using StaticToolHandlers
+        // Handle static tools (documents, clipboard, memory) using StaticToolHandlers
         const staticHandlers = new StaticToolHandlers(toolToServerMap, instructionToServerMap);
-        const staticTools = [
-            // Document tools
-            createDocumentStaticTool.name,
-            listDocumentsStaticTool.name,
-            searchDocumentsStaticTool.name,
-            getDocumentStaticTool.name,
-            updateDocumentStaticTool.name,
-            // Clipboard tools
-            clipboardSetStaticTool.name,
-            clipboardGetStaticTool.name,
-            clipboardDeleteStaticTool.name,
-            clipboardListStaticTool.name,
-            clipboardPushStaticTool.name,
-            clipboardPopStaticTool.name
-        ];
-
-        if (staticTools.includes(requestedToolName)) {
-            const result = await staticHandlers.handleStaticTool(requestedToolName, args);
-            if (result) {
-                return result;
-            }
+        const staticResult = await staticHandlers.handleStaticTool(requestedToolName, args);
+        if (staticResult) {
+            return staticResult;
         }
 
         // Look up the downstream tool in our map

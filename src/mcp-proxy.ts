@@ -826,7 +826,7 @@ export const createServer = async () => {
                             const promptsCount = Array.isArray(promptsResponse.data) ? promptsResponse.data.length : 0;
                             const templatesCount = Array.isArray(templatesResponse.data) ? templatesResponse.data.length : 0;
 
-                            const staticToolsCount = STATIC_TOOLS_COUNT; // Discovery, RAG, Notifications (4), Documents (5), Clipboard (7)
+                            const staticToolsCount = STATIC_TOOLS_COUNT;
                             const totalToolsCount = toolsCount + staticToolsCount;
 
                             const refreshMessage = server_uuid

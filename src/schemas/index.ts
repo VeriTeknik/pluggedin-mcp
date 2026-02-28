@@ -381,7 +381,7 @@ export const MemoryObserveInputSchema = z.object({
 }).describe("Record an observation during a memory session.");
 
 export const MemorySearchInputSchema = z.object({
-  query: z.string().max(1000)
+  query: z.string().min(1).max(1000)
     .describe("Natural language query to search memories semantically"),
   ring_types: z.array(z.enum(['procedures', 'practice', 'longterm', 'shocks'])).optional()
     .describe("Filter by memory ring types"),

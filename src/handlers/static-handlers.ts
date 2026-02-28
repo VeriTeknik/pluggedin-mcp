@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosResponse } from "axios";
 import { ToolExecutionResult } from "../types.js";
 import { 
   getPluggedinMCPApiKey, 
@@ -1901,8 +1901,8 @@ Set environment variables in your terminal before launching the editor.
   private async executeMemoryApiCall(
     toolName: string,
     failureMessage: string,
-    apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<any>,
-    formatResponse: (data: any) => string
+    apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<AxiosResponse>,
+    formatResponse: (data: AxiosResponse['data']) => string
   ): Promise<ToolExecutionResult> {
     debugLog(`[CallTool Handler] Executing static tool: ${toolName}`);
 
@@ -1943,6 +1943,9 @@ Set environment variables in your terminal before launching the editor.
           case 401:
             errorMsg = 'Authentication failed. Check your API key.';
             break;
+          case 404:
+            errorMsg = 'Resource not found. The session or memory UUID may be invalid or expired.';
+            break;
           case 429:
             errorMsg = 'Rate limit exceeded. Please try again later.';
             break;
@@ -1954,7 +1957,7 @@ Set environment variables in your terminal before launching the editor.
     }
   }
 
-  async handleMemorySessionStart(args: unknown): Promise<ToolExecutionResult> {
+  private async handleMemorySessionStart(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = MemorySessionStartInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memorySessionStartStaticTool.name,
@@ -1967,7 +1970,7 @@ Set environment variables in your terminal before launching the editor.
     );
   }
 
-  async handleMemorySessionEnd(args: unknown): Promise<ToolExecutionResult> {
+  private async handleMemorySessionEnd(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = MemorySessionEndInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memorySessionEndStaticTool.name,
@@ -1981,7 +1984,7 @@ Set environment variables in your terminal before launching the editor.
     );
   }
 
-  async handleMemoryObserve(args: unknown): Promise<ToolExecutionResult> {
+  private async handleMemoryObserve(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = MemoryObserveInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memoryObserveStaticTool.name,
@@ -2003,7 +2006,7 @@ Set environment variables in your terminal before launching the editor.
     );
   }
 
-  async handleMemorySearch(args: unknown): Promise<ToolExecutionResult> {
+  private async handleMemorySearch(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = MemorySearchInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memorySearchStaticTool.name,
@@ -2031,7 +2034,7 @@ Set environment variables in your terminal before launching the editor.
     );
   }
 
-  async handleMemoryDetails(args: unknown): Promise<ToolExecutionResult> {
+  private async handleMemoryDetails(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = MemoryDetailsInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memoryDetailsStaticTool.name,

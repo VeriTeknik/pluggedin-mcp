@@ -2158,7 +2158,7 @@ Set environment variables in your terminal before launching the editor.
           text += `Confidence: ${Math.round((p.confidence || 0) * 100)}% | Success Rate: ${Math.round((p.successRate || 0) * 100)}%\n`;
           text += `Seen: ${p.occurrenceCount} times | Similarity: ${Math.round((p.similarity || 0) * 100)}%\n`;
           text += `Pattern: ${p.pattern || p.description}\n`;
-          if (p.averageRating !== null) text += `Community Rating: ${p.averageRating.toFixed(1)}/5\n`;
+          if (p.averageRating != null) text += `Community Rating: ${p.averageRating.toFixed(1)}/5\n`;
           text += `\n`;
         }
         text += `Use pluggedin_cbp_feedback to rate patterns that were helpful or problematic.`;
@@ -2174,12 +2174,7 @@ Set environment variables in your terminal before launching the editor.
       "Failed to submit CBP feedback",
       (baseUrl, headers) => axios.post(
         `${baseUrl}/api/memory/cbp/feedback`,
-        {
-          pattern_uuid: validatedArgs.pattern_uuid,
-          rating: validatedArgs.rating,
-          feedback_type: validatedArgs.feedback_type,
-          comment: validatedArgs.comment,
-        },
+        validatedArgs,
         { headers }
       ),
       () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`

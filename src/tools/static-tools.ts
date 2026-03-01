@@ -473,7 +473,7 @@ export const cbpQueryStaticTool: Tool = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-    idempotentHint: true
+    idempotentHint: false
   }
 };
 

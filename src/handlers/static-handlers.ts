@@ -1906,7 +1906,8 @@ Set environment variables in your terminal before launching the editor.
     toolName: string,
     failureMessage: string,
     apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<AxiosResponse>,
-    formatResponse: (data: AxiosResponse['data']) => string
+    formatResponse: (data: AxiosResponse['data']) => string,
+    options?: { serverName?: string; serverUuid?: string; notFoundMessage?: string }
   ): Promise<ToolExecutionResult> {
     debugLog(`[CallTool Handler] Executing static tool: ${toolName}`);
 
@@ -1919,13 +1920,17 @@ Set environment variables in your terminal before launching the editor.
       };
     }
 
+    const serverName = options?.serverName || 'Memory System';
+    const serverUuid = options?.serverUuid || 'pluggedin_memory';
+    const notFoundMessage = options?.notFoundMessage || 'Resource not found. The session or memory UUID may be invalid or expired.';
+
     const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
     const timer = createExecutionTimer();
     try {
       const response = await apiCall(baseUrl, headers);
 
       logMcpActivity({
-        action: 'tool_call', serverName: 'Memory System', serverUuid: 'pluggedin_memory',
+        action: 'tool_call', serverName, serverUuid,
         itemName: toolName, success: true, executionTime: timer.stop(),
       }).catch(() => {});
 
@@ -1935,7 +1940,7 @@ Set environment variables in your terminal before launching the editor.
       };
     } catch (apiError: unknown) {
       logMcpActivity({
-        action: 'tool_call', serverName: 'Memory System', serverUuid: 'pluggedin_memory',
+        action: 'tool_call', serverName, serverUuid,
         itemName: toolName, success: false,
         errorMessage: apiError instanceof Error ? apiError.message : String(apiError), executionTime: timer.stop(),
       }).catch(() => {});
@@ -1948,7 +1953,7 @@ Set environment variables in your terminal before launching the editor.
             errorMsg = 'Authentication failed. Check your API key.';
             break;
           case 404:
-            errorMsg = 'Resource not found. The session or memory UUID may be invalid or expired.';
+            errorMsg = notFoundMessage;
             break;
           case 429:
             errorMsg = 'Rate limit exceeded. Please try again later.';
@@ -2133,7 +2138,7 @@ Set environment variables in your terminal before launching the editor.
   private async handleCBPQuery(args: unknown): Promise<ToolExecutionResult> {
     const validatedArgs = CBPQueryInputSchema.parse(args ?? {});
     const params = new URLSearchParams({ query: validatedArgs.query });
-    if (validatedArgs.context) params.set('context', validatedArgs.context);
+    params.set('context', validatedArgs.context);
     if (validatedArgs.tool_name) params.set('tool_name', validatedArgs.tool_name);
     if (validatedArgs.error_message) params.set('error_message', validatedArgs.error_message);
 
@@ -2163,7 +2168,8 @@ Set environment variables in your terminal before launching the editor.
         }
         text += `Use pluggedin_cbp_feedback to rate patterns that were helpful or problematic.`;
         return text;
-      }
+      },
+      { serverName: 'CBP System', serverUuid: 'pluggedin_cbp', notFoundMessage: 'No matching patterns found for the given query.' }
     );
   }
 
@@ -2177,7 +2183,8 @@ Set environment variables in your terminal before launching the editor.
         validatedArgs,
         { headers }
       ),
-      () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`
+      () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`,
+      { serverName: 'CBP System', serverUuid: 'pluggedin_cbp', notFoundMessage: 'Pattern not found. The pattern UUID may be invalid.' }
     );
   }
 }

@@ -86,10 +86,11 @@ import {
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
 import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
-import { 
+import {
   parsePrefixedToolName as parseAnyPrefixedToolName,
   isValidUuid
 } from "./slug-utils.js";
+import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
@@ -330,6 +331,7 @@ export const createServer = async () => {
         resources: {},
         tools: {},
       },
+      instructions: SERVER_INSTRUCTIONS,
     }
   );
 

@@ -22,7 +22,9 @@ import {
   MemorySessionEndInputSchema,
   MemoryObserveInputSchema,
   MemorySearchInputSchema,
-  MemoryDetailsInputSchema
+  MemoryDetailsInputSchema,
+  CBPQueryInputSchema,
+  CBPFeedbackInputSchema
 } from '../schemas/index.js';
 
 // Define the setup tool that works without API key
@@ -453,6 +455,46 @@ export const memoryDetailsStaticTool: Tool = {
   }
 };
 
+// ===== Collective Best Practices (CBP) Tools =====
+
+const cbpQuerySchema = zodToJsonSchema(CBPQueryInputSchema) as any;
+cbpQuerySchema.examples = [{
+  query: "error when deploying to kubernetes",
+  context: "post_error"
+}, {
+  query: "best practices for API authentication",
+  context: "contextual"
+}];
+
+export const cbpQueryStaticTool: Tool = {
+  name: "pluggedin_cbp_query",
+  description: "Query collective best practices - privacy-preserving patterns aggregated from the community. Use for proactive warnings before tool calls, post-error suggestions, or contextual enrichment.",
+  inputSchema: cbpQuerySchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true
+  }
+};
+
+const cbpFeedbackSchema = zodToJsonSchema(CBPFeedbackInputSchema) as any;
+cbpFeedbackSchema.examples = [{
+  pattern_uuid: "550e8400-e29b-41d4-a716-446655440000",
+  rating: 5,
+  feedback_type: "helpful"
+}];
+
+export const cbpFeedbackStaticTool: Tool = {
+  name: "pluggedin_cbp_feedback",
+  description: "Submit feedback on a collective pattern to improve quality. Rate patterns as helpful, inaccurate, outdated, or dangerous.",
+  inputSchema: cbpFeedbackSchema,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false
+  }
+};
+
 // Array of all static tools for counting and iteration
 export const allStaticTools: Tool[] = [
   setupStaticTool,
@@ -478,6 +520,8 @@ export const allStaticTools: Tool[] = [
   memoryObserveStaticTool,
   memorySearchStaticTool,
   memoryDetailsStaticTool,
+  cbpQueryStaticTool,
+  cbpFeedbackStaticTool,
 ];
 
 // Export the count for use in mcp-proxy.ts

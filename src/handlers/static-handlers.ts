@@ -33,7 +33,9 @@ import {
   MemorySessionEndInputSchema,
   MemoryObserveInputSchema,
   MemorySearchInputSchema,
-  MemoryDetailsInputSchema
+  MemoryDetailsInputSchema,
+  CBPQueryInputSchema,
+  CBPFeedbackInputSchema
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -68,7 +70,9 @@ import {
   memorySessionEndStaticTool,
   memoryObserveStaticTool,
   memorySearchStaticTool,
-  memoryDetailsStaticTool
+  memoryDetailsStaticTool,
+  cbpQueryStaticTool,
+  cbpFeedbackStaticTool
 } from '../tools/static-tools.js';
 
 // Type for tool to server mapping
@@ -2115,8 +2119,70 @@ Set environment variables in your terminal before launching the editor.
         return this.handleMemorySearch(args);
       case memoryDetailsStaticTool.name:
         return this.handleMemoryDetails(args);
+      case cbpQueryStaticTool.name:
+        return this.handleCBPQuery(args);
+      case cbpFeedbackStaticTool.name:
+        return this.handleCBPFeedback(args);
       default:
         return null; // Not a static tool
     }
+  }
+
+  // ===== CBP Handlers =====
+
+  private async handleCBPQuery(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = CBPQueryInputSchema.parse(args ?? {});
+    const params = new URLSearchParams({ query: validatedArgs.query });
+    if (validatedArgs.context) params.set('context', validatedArgs.context);
+    if (validatedArgs.tool_name) params.set('tool_name', validatedArgs.tool_name);
+    if (validatedArgs.error_message) params.set('error_message', validatedArgs.error_message);
+
+    return this.executeMemoryApiCall(
+      cbpQueryStaticTool.name,
+      "Failed to query collective best practices",
+      (baseUrl, headers) => axios.get(
+        `${baseUrl}/api/memory/cbp?${params.toString()}`,
+        { headers }
+      ),
+      (responseData) => {
+        const patterns = responseData.data || [];
+        if (patterns.length === 0) {
+          return `No collective patterns found for: "${validatedArgs.query}"`;
+        }
+
+        let text = `Found ${patterns.length} collective pattern(s) for: "${validatedArgs.query}"\n\n`;
+        for (const p of patterns) {
+          text += `---\n`;
+          text += `UUID: ${p.uuid}\n`;
+          text += `Type: ${p.patternType} | Context: ${p.context}\n`;
+          text += `Confidence: ${Math.round((p.confidence || 0) * 100)}% | Success Rate: ${Math.round((p.successRate || 0) * 100)}%\n`;
+          text += `Seen: ${p.occurrenceCount} times | Similarity: ${Math.round((p.similarity || 0) * 100)}%\n`;
+          text += `Pattern: ${p.pattern || p.description}\n`;
+          if (p.averageRating !== null) text += `Community Rating: ${p.averageRating.toFixed(1)}/5\n`;
+          text += `\n`;
+        }
+        text += `Use pluggedin_cbp_feedback to rate patterns that were helpful or problematic.`;
+        return text;
+      }
+    );
+  }
+
+  private async handleCBPFeedback(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = CBPFeedbackInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      cbpFeedbackStaticTool.name,
+      "Failed to submit CBP feedback",
+      (baseUrl, headers) => axios.post(
+        `${baseUrl}/api/memory/cbp/feedback`,
+        {
+          pattern_uuid: validatedArgs.pattern_uuid,
+          rating: validatedArgs.rating,
+          feedback_type: validatedArgs.feedback_type,
+          comment: validatedArgs.comment,
+        },
+        { headers }
+      ),
+      () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`
+    );
   }
 }

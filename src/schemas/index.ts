@@ -397,3 +397,27 @@ export const MemoryDetailsInputSchema = z.object({
   memory_uuids: z.array(z.string().uuid()).min(1).max(20)
     .describe("UUIDs of memories to retrieve full details for"),
 }).describe("Get full details for selected memories (progressive disclosure Layer 3).");
+
+// ===== Collective Best Practices (CBP) Schemas =====
+
+export const CBPQueryInputSchema = z.object({
+  query: z.string().min(1).max(2000)
+    .describe("Natural language query to find relevant collective patterns"),
+  context: z.enum(['proactive_warning', 'post_error', 'contextual']).optional().default('contextual')
+    .describe("Injection context: proactive_warning (before tool calls), post_error (after failures), contextual (general enrichment)"),
+  tool_name: z.string().max(200).optional()
+    .describe("Tool name for proactive_warning or post_error context"),
+  error_message: z.string().max(1000).optional()
+    .describe("Error message for post_error context"),
+}).describe("Query collective best practices - privacy-preserving patterns from the community.");
+
+export const CBPFeedbackInputSchema = z.object({
+  pattern_uuid: z.string().uuid()
+    .describe("UUID of the collective pattern to rate"),
+  rating: z.number().int().min(1).max(5)
+    .describe("Rating from 1 (unhelpful) to 5 (very helpful)"),
+  feedback_type: z.enum(['helpful', 'inaccurate', 'outdated', 'dangerous'])
+    .describe("Type of feedback"),
+  comment: z.string().max(1000).optional()
+    .describe("Optional free-text comment"),
+}).describe("Submit feedback on a collective pattern to improve quality.");

@@ -5,7 +5,7 @@
  * how to use the Plugged.in tool suite effectively.
  */
 
-export const SERVER_INSTRUCTIONS = `You are connected to Plugged.in, an AI infrastructure platform that provides memory, knowledge base, clipboard, document management, and notification tools.
+export const SERVER_INSTRUCTIONS = `You are connected to Plugged.in, an AI infrastructure platform that provides memory, knowledge base, clipboard, document management, notification, and collective best practices tools.
 
 ## Memory System (Session-Based)
 Start every conversation with pluggedin_memory_session_start, end with pluggedin_memory_session_end (triggers a Z-report — an end-of-session summary digest).
@@ -35,4 +35,7 @@ Use pluggedin_create_document for reports, analyses, or generated artifacts. Sea
 - End sessions properly to generate Z-reports (session summaries) for continuity
 
 ## Notifications
-Use pluggedin_send_notification to alert the user with optional email delivery. Manage notifications with pluggedin_list_notifications, pluggedin_mark_notification_done, and pluggedin_delete_notification. Useful for long-running tasks, background processing completion, or important status changes.`;
+Use pluggedin_send_notification to alert the user with optional email delivery. Manage notifications with pluggedin_list_notifications, pluggedin_mark_notification_done, and pluggedin_delete_notification. Useful for long-running tasks, background processing completion, or important status changes.
+
+## Collective Best Practices (CBP)
+Use pluggedin_cbp_query to search privacy-preserving patterns aggregated from the community. Query with context types: proactive_warning (before risky tool calls), post_error (after failures, to find known solutions), or contextual (general enrichment). Rate patterns with pluggedin_cbp_feedback to improve quality.`;

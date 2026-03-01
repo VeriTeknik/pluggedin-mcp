@@ -330,6 +330,33 @@ export const createServer = async () => {
         resources: {},
         tools: {},
       },
+      instructions: `You are connected to Plugged.in, an AI infrastructure platform that provides memory, knowledge base, clipboard, document management, and notification tools.
+
+## Memory System (Session-Based)
+Start every conversation with pluggedin_memory_session_start, end with pluggedin_memory_session_end (triggers Z-report summary).
+During the session, use pluggedin_memory_observe to record important observations:
+- tool_call / tool_result: What tools were used and their outcomes
+- user_preference: Explicit user preferences or workflow choices
+- error_pattern / success_pattern: What failed or succeeded and why
+- decision: Key decisions made during the session
+- insight: Conclusions or learnings worth remembering
+
+Use pluggedin_memory_search for semantic search (returns lightweight 50-150 token summaries). Follow up with pluggedin_memory_details only for memories you need full content on. This progressive disclosure pattern saves tokens.
+
+## Knowledge Base (RAG)
+Use pluggedin_ask_knowledge_base to query the user's uploaded documents. Always check the knowledge base before asking the user for information that might already be documented.
+
+## Clipboard (Cross-Agent State)
+Use clipboard tools (pluggedin_clipboard_set/get/push/pop) to pass data between agents or persist intermediate results. Named entries for semantic access, indexed entries for ordered pipelines.
+
+## Documents
+Create documents with pluggedin_create_document for reports, analyses, or generated artifacts the user should keep. Search existing documents with pluggedin_search_documents.
+
+## Best Practices
+- Search memory before asking the user questions they may have answered before
+- Observe errors and their resolutions so future sessions can learn from them
+- Use clipboard for multi-step pipelines where intermediate results matter
+- End sessions properly to generate Z-reports for session continuity`,
     }
   );
 

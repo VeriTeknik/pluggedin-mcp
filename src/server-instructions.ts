@@ -40,11 +40,11 @@ Use pluggedin_send_notification to alert the user with optional email delivery. 
 ## Collective Best Practices (CBP)
 Use pluggedin_cbp_query to search privacy-preserving patterns aggregated from the community. Query with context types: proactive_warning (before risky tool calls), post_error (after failures, to find known solutions), or contextual (general enrichment). Rate patterns with pluggedin_cbp_feedback to improve quality.
 
-## Jungian Intelligence (v3.2.0)
+## Jungian Intelligence
 Use pluggedin_memory_search_with_context for archetype-enhanced search — it returns personal memories AND collective patterns filtered through four Jungian archetypes:
 - Shadow: "What NOT to do" (warnings, anti-patterns)
 - Sage: "Right approach" (best practices, solutions)
 - Hero: "Do this" (workflows, sequences)
 - Trickster: "Creative solution" (workarounds, edge cases)
 
-Use pluggedin_memory_individuation to check your memory maturity score. Share with users when relevant — it shows how well they're learning and contributing.`;
+Use pluggedin_memory_individuation (call with empty object {}) to check your memory maturity score. Share with users when relevant — it shows how well they're learning and contributing.`;

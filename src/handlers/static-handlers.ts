@@ -35,7 +35,9 @@ import {
   MemorySearchInputSchema,
   MemoryDetailsInputSchema,
   CBPQueryInputSchema,
-  CBPFeedbackInputSchema
+  CBPFeedbackInputSchema,
+  MemorySearchWithContextInputSchema,
+  MemoryIndividuationInputSchema
 } from '../schemas/index.js';
 import { getMcpServers } from "../fetch-pluggedinmcp.js";
 import { 
@@ -72,7 +74,9 @@ import {
   memorySearchStaticTool,
   memoryDetailsStaticTool,
   cbpQueryStaticTool,
-  cbpFeedbackStaticTool
+  cbpFeedbackStaticTool,
+  memorySearchWithContextStaticTool,
+  memoryIndividuationStaticTool
 } from '../tools/static-tools.js';
 
 // Type for tool to server mapping
@@ -2128,6 +2132,10 @@ Set environment variables in your terminal before launching the editor.
         return this.handleCBPQuery(args);
       case cbpFeedbackStaticTool.name:
         return this.handleCBPFeedback(args);
+      case memorySearchWithContextStaticTool.name:
+        return this.handleMemorySearchWithContext(args);
+      case memoryIndividuationStaticTool.name:
+        return this.handleMemoryIndividuation(args);
       default:
         return null; // Not a static tool
     }
@@ -2185,6 +2193,89 @@ Set environment variables in your terminal before launching the editor.
       ),
       () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`,
       { serverName: 'CBP System', serverUuid: 'pluggedin_cbp', notFoundMessage: 'Pattern not found. The pattern UUID may be invalid.' }
+    );
+  }
+
+  // ===== Jungian Intelligence Handlers =====
+
+  private async handleMemorySearchWithContext(args: unknown): Promise<ToolExecutionResult> {
+    const validatedArgs = MemorySearchWithContextInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memorySearchWithContextStaticTool.name,
+      "Failed to search memories with archetype context",
+      (baseUrl, headers) => axios.post(
+        `${baseUrl}/api/memory/archetype/inject`,
+        validatedArgs,
+        { headers }
+      ),
+      (responseData) => {
+        const data = responseData.data || responseData;
+        const { memories = [], patterns = [], archetypeWeights } = data;
+
+        let text = "";
+
+        if (archetypeWeights) {
+          const dominant = Object.entries(archetypeWeights)
+            .sort(([, a], [, b]) => (b as number) - (a as number))[0];
+          text += `Archetype: ${dominant[0]} (${Math.round((dominant[1] as number) * 100)}%)\n\n`;
+        }
+
+        if (memories.length > 0) {
+          text += `## Personal Memories (${memories.length})\n\n`;
+          for (const m of memories) {
+            text += `- [${m.ringType || "memory"}] ${m.contentSummary || m.contentEssence || m.uuid}\n`;
+            if (m.relevanceScore != null) text += `  Relevance: ${Math.round(m.relevanceScore * 100)}%\n`;
+          }
+          text += "\n";
+        }
+
+        if (patterns.length > 0) {
+          text += `## Collective Patterns (${patterns.length})\n\n`;
+          for (const p of patterns) {
+            text += `- [${p.archetype || p.patternType}] ${p.pattern || p.description}\n`;
+            if (p.confidence != null) text += `  Confidence: ${Math.round(p.confidence * 100)}%\n`;
+          }
+        }
+
+        if (memories.length === 0 && patterns.length === 0) {
+          text = `No memories or patterns found for: "${validatedArgs.query}"`;
+        }
+
+        return text;
+      },
+      { serverName: "Jungian Intelligence", serverUuid: "pluggedin_jungian", notFoundMessage: "No memories or patterns found for the given query." }
+    );
+  }
+
+  private async handleMemoryIndividuation(args: unknown): Promise<ToolExecutionResult> {
+    MemoryIndividuationInputSchema.parse(args ?? {});
+    return this.executeMemoryApiCall(
+      memoryIndividuationStaticTool.name,
+      "Failed to get individuation score",
+      (baseUrl, headers) => axios.get(
+        `${baseUrl}/api/memory/individuation`,
+        { headers }
+      ),
+      (responseData) => {
+        const data = responseData.data || responseData;
+        const total = data.total ?? 0;
+        const level = data.level ?? "nascent";
+        const trend = data.weeklyTrend ?? "stable";
+        const tip = data.tip ?? "";
+        const c = data.components || {};
+
+        let text = `# Individuation Score: ${total}/100 (${level})\n\n`;
+        text += `## Components\n`;
+        text += `- Memory Depth: ${c.memoryDepth ?? 0}/25\n`;
+        text += `- Learning Velocity: ${c.learningVelocity ?? 0}/25\n`;
+        text += `- Collective Contribution: ${c.collectiveContribution ?? 0}/25\n`;
+        text += `- Self-Awareness: ${c.selfAwareness ?? 0}/25\n\n`;
+        text += `Weekly Trend: ${trend}\n`;
+        if (tip) text += `\nTip: ${tip}`;
+
+        return text;
+      },
+      { serverName: "Jungian Intelligence", serverUuid: "pluggedin_jungian", notFoundMessage: "Individuation data not available yet." }
     );
   }
 }

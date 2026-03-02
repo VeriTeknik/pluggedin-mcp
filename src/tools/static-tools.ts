@@ -24,7 +24,9 @@ import {
   MemorySearchInputSchema,
   MemoryDetailsInputSchema,
   CBPQueryInputSchema,
-  CBPFeedbackInputSchema
+  CBPFeedbackInputSchema,
+  MemorySearchWithContextInputSchema,
+  MemoryIndividuationInputSchema
 } from '../schemas/index.js';
 
 // Define the setup tool that works without API key
@@ -497,24 +499,15 @@ export const cbpFeedbackStaticTool: Tool = {
 
 // --- Jungian Intelligence Layer Tools ---
 
-const memorySearchWithContextSchema = {
-  type: 'object' as const,
-  properties: {
-    query: { type: 'string', description: 'Search query' },
-    tool_name: { type: 'string', description: 'Current tool name for context' },
-    outcome: { type: 'string', enum: ['success', 'failure', 'neutral'], description: 'Outcome context' },
-    include_archetypes: { type: 'boolean', description: 'Include archetype-filtered collective patterns', default: true },
-  },
-  required: ['query'],
-  examples: [
-    { query: 'npm install ERESOLVE error', tool_name: 'Bash', outcome: 'failure', include_archetypes: true },
-    { query: 'Docker build optimization' },
-  ],
-};
+const memorySearchWithContextSchema = zodToJsonSchema(MemorySearchWithContextInputSchema) as any;
+memorySearchWithContextSchema.examples = [
+  { query: "npm install ERESOLVE error", tool_name: "Bash", outcome: "failure", include_archetypes: true },
+  { query: "Docker build optimization" },
+];
 
 export const memorySearchWithContextStaticTool: Tool = {
-  name: 'pluggedin_memory_search_with_context',
-  description: 'Search memories with archetype-enhanced collective intelligence. Returns both personal memories and collective patterns filtered through Shadow/Sage/Hero/Trickster archetypes based on context.',
+  name: "pluggedin_memory_search_with_context",
+  description: "Search memories with archetype-enhanced collective intelligence. Returns both personal memories and collective patterns filtered through Shadow/Sage/Hero/Trickster archetypes based on context.",
   inputSchema: memorySearchWithContextSchema,
   annotations: {
     readOnlyHint: true,
@@ -523,15 +516,12 @@ export const memorySearchWithContextStaticTool: Tool = {
   },
 };
 
-const memoryIndividuationSchema = {
-  type: 'object' as const,
-  properties: {},
-  examples: [{}],
-};
+const memoryIndividuationSchema = zodToJsonSchema(MemoryIndividuationInputSchema) as any;
+memoryIndividuationSchema.examples = [{}];
 
 export const memoryIndividuationStaticTool: Tool = {
-  name: 'pluggedin_memory_individuation',
-  description: 'Get your individuation score — a measure of memory maturity (0-100). Shows Memory Depth, Learning Velocity, Collective Contribution, and Self-Awareness components with trend and personalized tips.',
+  name: "pluggedin_memory_individuation",
+  description: "Get your individuation score — a measure of memory maturity (0-100). Shows Memory Depth, Learning Velocity, Collective Contribution, and Self-Awareness components with trend and personalized tips. Call with empty object {}.",
   inputSchema: memoryIndividuationSchema,
   annotations: {
     readOnlyHint: true,

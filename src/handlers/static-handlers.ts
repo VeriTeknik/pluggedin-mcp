@@ -2209,15 +2209,18 @@ Set environment variables in your terminal before launching the editor.
         { headers }
       ),
       (responseData) => {
-        const data = responseData.data || responseData;
+        const data = responseData.data;
         const { memories = [], patterns = [], archetypeWeights } = data;
 
         let text = "";
 
         if (archetypeWeights) {
-          const dominant = Object.entries(archetypeWeights)
-            .sort(([, a], [, b]) => (b as number) - (a as number))[0];
-          text += `Archetype: ${dominant[0]} (${Math.round((dominant[1] as number) * 100)}%)\n\n`;
+          const entries = Object.entries(archetypeWeights);
+          if (entries.length > 0) {
+            const dominant = entries
+              .sort(([, a], [, b]) => (b as number) - (a as number))[0];
+            text += `Archetype: ${dominant[0]} (${Math.round((dominant[1] as number) * 100)}%)\n\n`;
+          }
         }
 
         if (memories.length > 0) {
@@ -2248,7 +2251,7 @@ Set environment variables in your terminal before launching the editor.
   }
 
   private async handleMemoryIndividuation(args: unknown): Promise<ToolExecutionResult> {
-    MemoryIndividuationInputSchema.parse(args ?? {});
+    const _validatedArgs = MemoryIndividuationInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memoryIndividuationStaticTool.name,
       "Failed to get individuation score",
@@ -2257,7 +2260,7 @@ Set environment variables in your terminal before launching the editor.
         { headers }
       ),
       (responseData) => {
-        const data = responseData.data || responseData;
+        const data = responseData.data;
         const total = data.total ?? 0;
         const level = data.level ?? "nascent";
         const trend = data.weeklyTrend ?? "stable";

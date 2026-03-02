@@ -505,6 +505,8 @@ memorySearchWithContextSchema.examples = [
   { query: "Docker build optimization" },
 ];
 
+// readOnlyHint: true is correct — "inject" refers to injecting patterns into the AI
+// context window for retrieval, not writing to DB. The endpoint only reads memories + CBP patterns.
 export const memorySearchWithContextStaticTool: Tool = {
   name: "pluggedin_memory_search_with_context",
   description: "Search memories with archetype-enhanced collective intelligence. Returns both personal memories and collective patterns filtered through Shadow/Sage/Hero/Trickster archetypes based on context.",

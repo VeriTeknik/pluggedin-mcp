@@ -2202,17 +2202,17 @@ Set environment variables in your terminal before launching the editor.
     const validatedArgs = MemorySearchWithContextInputSchema.parse(args ?? {});
     return this.executeMemoryApiCall(
       memorySearchWithContextStaticTool.name,
-      "Failed to search memories with archetype context",
+      'Failed to search memories with archetype context',
       (baseUrl, headers) => axios.post(
         `${baseUrl}/api/memory/archetype/inject`,
         validatedArgs,
         { headers }
       ),
       (responseData) => {
-        const data = responseData.data;
+        const data = responseData.data ?? {};
         const { memories = [], patterns = [], archetypeWeights } = data;
 
-        let text = "";
+        let text = '';
 
         if (archetypeWeights) {
           const entries = Object.entries(archetypeWeights);
@@ -2226,10 +2226,10 @@ Set environment variables in your terminal before launching the editor.
         if (memories.length > 0) {
           text += `## Personal Memories (${memories.length})\n\n`;
           for (const m of memories) {
-            text += `- [${m.ringType || "memory"}] ${m.contentSummary || m.contentEssence || m.uuid}\n`;
+            text += `- [${m.ringType || 'memory'}] ${m.contentSummary || m.contentEssence || m.uuid}\n`;
             if (m.relevanceScore != null) text += `  Relevance: ${Math.round(m.relevanceScore * 100)}%\n`;
           }
-          text += "\n";
+          text += '\n';
         }
 
         if (patterns.length > 0) {
@@ -2246,25 +2246,24 @@ Set environment variables in your terminal before launching the editor.
 
         return text;
       },
-      { serverName: "Jungian Intelligence", serverUuid: "pluggedin_jungian", notFoundMessage: "No memories or patterns found for the given query." }
+      { serverName: 'Jungian Intelligence', serverUuid: 'pluggedin_jungian', notFoundMessage: 'No memories or patterns found for the given query.' }
     );
   }
 
-  private async handleMemoryIndividuation(args: unknown): Promise<ToolExecutionResult> {
-    const _validatedArgs = MemoryIndividuationInputSchema.parse(args ?? {});
+  private async handleMemoryIndividuation(_args: unknown): Promise<ToolExecutionResult> {
     return this.executeMemoryApiCall(
       memoryIndividuationStaticTool.name,
-      "Failed to get individuation score",
+      'Failed to get individuation score',
       (baseUrl, headers) => axios.get(
         `${baseUrl}/api/memory/individuation`,
         { headers }
       ),
       (responseData) => {
-        const data = responseData.data;
+        const data = responseData.data ?? {};
         const total = data.total ?? 0;
-        const level = data.level ?? "nascent";
-        const trend = data.weeklyTrend ?? "stable";
-        const tip = data.tip ?? "";
+        const level = data.level ?? 'nascent';
+        const trend = data.weeklyTrend ?? 'stable';
+        const tip = data.tip ?? '';
         const c = data.components || {};
 
         let text = `# Individuation Score: ${total}/100 (${level})\n\n`;
@@ -2278,7 +2277,7 @@ Set environment variables in your terminal before launching the editor.
 
         return text;
       },
-      { serverName: "Jungian Intelligence", serverUuid: "pluggedin_jungian", notFoundMessage: "Individuation data not available yet." }
+      { serverName: 'Jungian Intelligence', serverUuid: 'pluggedin_jungian', notFoundMessage: 'Individuation data not available yet.' }
     );
   }
 }

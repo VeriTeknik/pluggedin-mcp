@@ -38,10 +38,10 @@ Use pluggedin_create_document for reports, analyses, or generated artifacts. Sea
 Use pluggedin_send_notification to alert the user with optional email delivery. Manage notifications with pluggedin_list_notifications, pluggedin_mark_notification_done, and pluggedin_delete_notification. Useful for long-running tasks, background processing completion, or important status changes.
 
 ## Collective Best Practices (CBP)
-Use pluggedin_cbp_query to search privacy-preserving patterns aggregated from the community. Query with context types: proactive_warning (before risky tool calls), post_error (after failures, to find known solutions), or contextual (general enrichment). Rate patterns with pluggedin_cbp_feedback to improve quality.
+Use pluggedin_cbp_query to search privacy-preserving patterns aggregated from the community. Query with context types: proactive_warning (before risky tool calls), post_error (after failures, to find known solutions), or contextual (general enrichment). Rate patterns with pluggedin_cbp_feedback to improve quality. Use CBP when you need raw community patterns for a specific context type.
 
 ## Jungian Intelligence
-Use pluggedin_memory_search_with_context for archetype-enhanced search — it returns personal memories AND collective patterns filtered through four Jungian archetypes:
+Use pluggedin_memory_search_with_context instead of pluggedin_cbp_query when you want BOTH personal memories AND collective patterns in one call, filtered through archetypes. It returns results filtered through four Jungian archetypes:
 - Shadow: "What NOT to do" (warnings, anti-patterns)
 - Sage: "Right approach" (best practices, solutions)
 - Hero: "Do this" (workflows, sequences)

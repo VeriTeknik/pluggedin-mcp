@@ -498,7 +498,7 @@ export const cbpFeedbackStaticTool: Tool = {
 // --- Jungian Intelligence Layer Tools ---
 
 const memorySearchWithContextSchema = {
-  type: 'object',
+  type: 'object' as const,
   properties: {
     query: { type: 'string', description: 'Search query' },
     tool_name: { type: 'string', description: 'Current tool name for context' },
@@ -524,7 +524,7 @@ export const memorySearchWithContextStaticTool: Tool = {
 };
 
 const memoryIndividuationSchema = {
-  type: 'object',
+  type: 'object' as const,
   properties: {},
   examples: [{}],
 };

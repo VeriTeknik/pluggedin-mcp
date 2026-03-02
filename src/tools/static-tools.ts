@@ -514,7 +514,7 @@ export const memorySearchWithContextStaticTool: Tool = {
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-    idempotentHint: true,
+    idempotentHint: false,
   },
 };
 

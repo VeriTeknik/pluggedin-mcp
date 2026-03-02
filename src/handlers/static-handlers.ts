@@ -2215,7 +2215,8 @@ Set environment variables in your terminal before launching the editor.
         let text = '';
 
         if (archetypeWeights) {
-          const entries = Object.entries(archetypeWeights);
+          const entries = Object.entries(archetypeWeights)
+            .filter(([, v]) => typeof v === 'number');
           if (entries.length > 0) {
             const dominant = entries
               .sort(([, a], [, b]) => (b as number) - (a as number))[0];

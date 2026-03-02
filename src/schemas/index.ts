@@ -421,3 +421,18 @@ export const CBPFeedbackInputSchema = z.object({
   comment: z.string().max(1000).optional()
     .describe("Optional free-text comment"),
 }).describe("Submit feedback on a collective pattern to improve quality.");
+
+// ===== Jungian Intelligence Schemas =====
+
+export const MemorySearchWithContextInputSchema = z.object({
+  query: z.string().min(1).max(2000)
+    .describe("Search query for archetype-enhanced memory search"),
+  tool_name: z.string().max(200).optional()
+    .describe("Current tool name for archetype context routing"),
+  outcome: z.enum(["success", "failure", "neutral"]).optional()
+    .describe("Outcome context for archetype filtering (affects Shadow/Sage/Hero weighting)"),
+  include_archetypes: z.boolean().optional().default(true)
+    .describe("Include archetype-filtered collective patterns (default: true)"),
+}).describe("Search memories with archetype-enhanced collective intelligence.");
+
+export const MemoryIndividuationInputSchema = z.object({}).describe("Get individuation score — no parameters required. Call with empty object {}.");

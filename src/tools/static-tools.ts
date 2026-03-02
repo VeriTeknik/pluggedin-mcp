@@ -24,7 +24,9 @@ import {
   MemorySearchInputSchema,
   MemoryDetailsInputSchema,
   CBPQueryInputSchema,
-  CBPFeedbackInputSchema
+  CBPFeedbackInputSchema,
+  MemorySearchWithContextInputSchema,
+  MemoryIndividuationInputSchema
 } from '../schemas/index.js';
 
 // Define the setup tool that works without API key
@@ -495,6 +497,41 @@ export const cbpFeedbackStaticTool: Tool = {
   }
 };
 
+// --- Jungian Intelligence Layer Tools ---
+
+const memorySearchWithContextSchema = zodToJsonSchema(MemorySearchWithContextInputSchema) as any;
+memorySearchWithContextSchema.examples = [
+  { query: "npm install ERESOLVE error", tool_name: "Bash", outcome: "failure", include_archetypes: true },
+  { query: "Docker build optimization" },
+];
+
+// readOnlyHint: true is correct — "inject" refers to injecting patterns into the AI
+// context window for retrieval, not writing to DB. The endpoint only reads memories + CBP patterns.
+export const memorySearchWithContextStaticTool: Tool = {
+  name: "pluggedin_memory_search_with_context",
+  description: "Search memories with archetype-enhanced collective intelligence. Returns both personal memories and collective patterns filtered through Shadow/Sage/Hero/Trickster archetypes based on context.",
+  inputSchema: memorySearchWithContextSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: false,
+  },
+};
+
+const memoryIndividuationSchema = zodToJsonSchema(MemoryIndividuationInputSchema) as any;
+memoryIndividuationSchema.examples = [{}];
+
+export const memoryIndividuationStaticTool: Tool = {
+  name: "pluggedin_memory_individuation",
+  description: "Get your individuation score — a measure of memory maturity (0-100). Shows Memory Depth, Learning Velocity, Collective Contribution, and Self-Awareness components with trend and personalized tips. Call with empty object {}.",
+  inputSchema: memoryIndividuationSchema,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+  },
+};
+
 // Array of all static tools for counting and iteration
 export const allStaticTools: Tool[] = [
   setupStaticTool,
@@ -522,6 +559,8 @@ export const allStaticTools: Tool[] = [
   memoryDetailsStaticTool,
   cbpQueryStaticTool,
   cbpFeedbackStaticTool,
+  memorySearchWithContextStaticTool,
+  memoryIndividuationStaticTool,
 ];
 
 // Export the count for use in mcp-proxy.ts

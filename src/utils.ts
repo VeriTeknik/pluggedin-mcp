@@ -17,7 +17,8 @@ export const sanitizeName = (name: string): string => {
 // Helper function to get the API key, prioritizing argument over environment variable
 export const getPluggedinMCPApiKey = (apiKey?: string): string | undefined => {
   // Prioritize argument, then environment variable, then settings.local.json
-  const key = apiKey ?? process.env.PLUGGEDIN_API_KEY ?? getSettingsEnvVar('PLUGGEDIN_API_KEY');
+  // Use || instead of ?? so empty strings (from unexpanded ${PLUGGEDIN_API_KEY}) trigger fallback
+  const key = apiKey || process.env.PLUGGEDIN_API_KEY || getSettingsEnvVar('PLUGGEDIN_API_KEY');
   
   // Validate token format if present
   if (key && !validateBearerToken(key)) {
@@ -31,7 +32,7 @@ export const getPluggedinMCPApiKey = (apiKey?: string): string | undefined => {
 // Helper function to get the API base URL, prioritizing argument, then env var, then default
 export const getPluggedinMCPApiBaseUrl = (baseUrl?: string): string | undefined => {
   // Prioritize argument, then environment variable, then settings.local.json, then default
-  const url = baseUrl ?? process.env.PLUGGEDIN_API_BASE_URL ?? getSettingsEnvVar('PLUGGEDIN_API_BASE_URL') ?? 'https://plugged.in';
+  const url = baseUrl || process.env.PLUGGEDIN_API_BASE_URL || getSettingsEnvVar('PLUGGEDIN_API_BASE_URL') || 'https://plugged.in';
   
   if (!url) {
     return undefined;

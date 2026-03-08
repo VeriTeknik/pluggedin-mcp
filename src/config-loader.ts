@@ -1,10 +1,12 @@
 /**
- * Reads environment variables from .claude/settings.local.json files.
- * Provides a fallback when env vars are not set (e.g., MCP server started
- * before /pluggedin:setup saved the API key).
+ * Reads Plugged.in credentials from the XDG-compliant config file
+ * ($XDG_CONFIG_HOME/pluggedin/credentials.json, default ~/.config)
+ * with fallback to legacy .claude/settings.local.json locations.
  *
- * Search order: project-level (./.claude/settings.local.json) overrides
- * user-level (~/.claude/settings.local.json).
+ * Search order (first match wins):
+ * 1. $XDG_CONFIG_HOME/pluggedin/credentials.json  (preferred — outside any repo)
+ * 2. ./.claude/settings.local.json                 (project-level, legacy)
+ * 3. ~/.claude/settings.local.json                 (user-level, legacy)
  */
 
 import { readFileSync, statSync } from 'fs';
@@ -14,14 +16,24 @@ import { debugLog } from './debug-log.js';
 
 interface SettingsCache {
   env: Record<string, string>;
-  projectMtime: number;
-  userMtime: number;
+  mtimes: number[];
   lastCheckedAt: number;
 }
 
 const CACHE_TTL_MS = 5_000;
 
+const CREDENTIAL_KEY_MAP: Record<string, string> = {
+  api_key: 'PLUGGEDIN_API_KEY',
+  base_url: 'PLUGGEDIN_API_BASE_URL',
+  mcp_endpoint: 'PLUGGEDIN_MCP_ENDPOINT',
+};
+
 let cache: SettingsCache | null = null;
+
+function getCredentialsPath(): string {
+  const xdgConfig = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  return join(xdgConfig, 'pluggedin', 'credentials.json');
+}
 
 function getProjectSettingsPath(): string {
   return join(process.cwd(), '.claude', 'settings.local.json');
@@ -31,6 +43,37 @@ function getUserSettingsPath(): string {
   return join(homedir(), '.claude', 'settings.local.json');
 }
 
+/**
+ * Read credentials.json format: { "api_key": "...", "base_url": "..." }
+ * Returns normalized env-style record.
+ */
+function readCredentialsFile(filePath: string): Record<string, string> {
+  try {
+    const content = readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(content);
+    if (!parsed || typeof parsed !== 'object') return {};
+
+    const env: Record<string, string> = {};
+    for (const [jsonKey, envKey] of Object.entries(CREDENTIAL_KEY_MAP)) {
+      if (typeof parsed[jsonKey] === 'string') {
+        env[envKey] = parsed[jsonKey];
+      }
+    }
+    return env;
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) return {};
+    if (err && typeof err === 'object' && 'code' in err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') return {};
+    }
+    debugLog(`[config-loader] Failed to read credentials from ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+    return {};
+  }
+}
+
+/**
+ * Read .claude/settings.local.json format: { "env": { "KEY": "value" } }
+ */
 function readSettingsFile(filePath: string): Record<string, string> {
   try {
     const content = readFileSync(filePath, 'utf-8');
@@ -65,27 +108,36 @@ function getCachedSettings(): Record<string, string> {
     return cache.env;
   }
 
+  const credentialsPath = getCredentialsPath();
   const projectPath = getProjectSettingsPath();
   const userPath = getUserSettingsPath();
-  const projectMtime = getFileMtime(projectPath);
-  const userMtime = getFileMtime(userPath);
 
-  if (cache && cache.projectMtime === projectMtime && cache.userMtime === userMtime) {
+  const mtimes = [
+    getFileMtime(credentialsPath),
+    getFileMtime(projectPath),
+    getFileMtime(userPath),
+  ];
+
+  if (cache && cache.mtimes.every((m, i) => m === mtimes[i])) {
     cache.lastCheckedAt = now;
     return cache.env;
   }
 
-  // User-level first, then project-level overrides
+  // Read in priority order: credentials.json first, then legacy settings
+  const credentialsEnv = readCredentialsFile(credentialsPath);
   const userEnv = readSettingsFile(userPath);
   const projectEnv = readSettingsFile(projectPath);
-  const merged = { ...userEnv, ...projectEnv };
+
+  // Lower priority first, higher priority overrides
+  const merged = { ...userEnv, ...projectEnv, ...credentialsEnv };
 
   const hasKeys = Object.keys(merged).length > 0;
 
-  cache = { env: merged, projectMtime, userMtime, lastCheckedAt: now };
+  cache = { env: merged, mtimes, lastCheckedAt: now };
 
   if (hasKeys) {
     const sources: string[] = [];
+    if (Object.keys(credentialsEnv).length > 0) sources.push('credentials');
     if (Object.keys(projectEnv).length > 0) sources.push('project');
     if (Object.keys(userEnv).length > 0) sources.push('user');
     debugLog(`[config-loader] Loaded settings from: ${sources.join(', ')}`);
@@ -95,8 +147,8 @@ function getCachedSettings(): Record<string, string> {
 }
 
 /**
- * Get a single environment variable from .claude/settings.local.json files.
- * Checks project-level first, then user-level.
+ * Get a single environment variable from config files.
+ * Checks ~/.config/pluggedin/credentials.json first, then legacy settings.
  * Results are cached with mtime-based invalidation (5s TTL).
  */
 export function getSettingsEnvVar(varName: string): string | undefined {

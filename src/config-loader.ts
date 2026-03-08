@@ -1,12 +1,12 @@
 /**
  * Reads Plugged.in credentials from the XDG-compliant config file
- * (~/.config/pluggedin/credentials.json) with fallback to legacy
- * .claude/settings.local.json locations.
+ * ($XDG_CONFIG_HOME/pluggedin/credentials.json, default ~/.config)
+ * with fallback to legacy .claude/settings.local.json locations.
  *
  * Search order (first match wins):
- * 1. ~/.config/pluggedin/credentials.json  (preferred — outside any repo)
- * 2. ./.claude/settings.local.json         (project-level, legacy)
- * 3. ~/.claude/settings.local.json         (user-level, legacy)
+ * 1. $XDG_CONFIG_HOME/pluggedin/credentials.json  (preferred — outside any repo)
+ * 2. ./.claude/settings.local.json                 (project-level, legacy)
+ * 3. ~/.claude/settings.local.json                 (user-level, legacy)
  */
 
 import { readFileSync, statSync } from 'fs';
@@ -22,10 +22,17 @@ interface SettingsCache {
 
 const CACHE_TTL_MS = 5_000;
 
+const CREDENTIAL_KEY_MAP: Record<string, string> = {
+  api_key: 'PLUGGEDIN_API_KEY',
+  base_url: 'PLUGGEDIN_API_BASE_URL',
+  mcp_endpoint: 'PLUGGEDIN_MCP_ENDPOINT',
+};
+
 let cache: SettingsCache | null = null;
 
 function getCredentialsPath(): string {
-  return join(homedir(), '.config', 'pluggedin', 'credentials.json');
+  const xdgConfig = process.env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  return join(xdgConfig, 'pluggedin', 'credentials.json');
 }
 
 function getProjectSettingsPath(): string {
@@ -47,17 +54,19 @@ function readCredentialsFile(filePath: string): Record<string, string> {
     if (!parsed || typeof parsed !== 'object') return {};
 
     const env: Record<string, string> = {};
-    if (typeof parsed.api_key === 'string') {
-      env['PLUGGEDIN_API_KEY'] = parsed.api_key;
-    }
-    if (typeof parsed.base_url === 'string') {
-      env['PLUGGEDIN_API_BASE_URL'] = parsed.base_url;
-    }
-    if (typeof parsed.mcp_endpoint === 'string') {
-      env['PLUGGEDIN_MCP_ENDPOINT'] = parsed.mcp_endpoint;
+    for (const [jsonKey, envKey] of Object.entries(CREDENTIAL_KEY_MAP)) {
+      if (typeof parsed[jsonKey] === 'string') {
+        env[envKey] = parsed[jsonKey];
+      }
     }
     return env;
-  } catch {
+  } catch (err: unknown) {
+    if (err instanceof SyntaxError) return {};
+    if (err && typeof err === 'object' && 'code' in err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') return {};
+    }
+    debugLog(`[config-loader] Failed to read credentials from ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
     return {};
   }
 }

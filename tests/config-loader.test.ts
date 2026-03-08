@@ -126,19 +126,23 @@ describe('config-loader', () => {
     expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBeUndefined();
   });
 
-  it('only returns string values from credentials.json', () => {
+  it('only returns string values from any config file', () => {
     vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as fs.Stats);
     vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
       const p = String(filePath);
       if (p.includes('.config/pluggedin/credentials.json')) {
         return JSON.stringify({ api_key: 42, base_url: null });
       }
-      return JSON.stringify({ env: { GOOD: 'string_value_padded_to_be_long_enough' } });
+      return JSON.stringify({ env: { GOOD: 'string_value_padded_to_be_long_enough', BAD_NUM: 123, BAD_NULL: null, BAD_OBJ: {} } });
     });
 
     // Non-string values in credentials.json should be ignored
     expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBeUndefined();
-    // But legacy string values still work
+    // Non-string values in legacy settings.local.json should be ignored
+    expect(getSettingsEnvVar('BAD_NUM')).toBeUndefined();
+    expect(getSettingsEnvVar('BAD_NULL')).toBeUndefined();
+    expect(getSettingsEnvVar('BAD_OBJ')).toBeUndefined();
+    // But valid string values from legacy files still work
     expect(getSettingsEnvVar('GOOD')).toBe('string_value_padded_to_be_long_enough');
   });
 

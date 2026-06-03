@@ -4,7 +4,7 @@
  * MCP Protocol Compliance:
  * - Headers use Title-Case per MCP spec (Mcp-Session-Id, Mcp-Protocol-Version)
  * - CORS headers expose custom headers to clients
- * - Protocol version validation (2024-11-05)
+ * - Protocol version validation (negotiated against the bundled SDK's supported set)
  * - JSON-RPC 2.0 compliant error codes
  *
  * JSON-RPC Error Codes Used:

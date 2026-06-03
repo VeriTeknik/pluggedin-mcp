@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import request from 'supertest';
 import { startStreamableHTTPServer } from '../src/streamable-http';
+import { MCP_PROTOCOL_VERSION, SUPPORTED_MCP_PROTOCOL_VERSIONS } from '../src/constants';
 
 // Test port constants to avoid magic numbers and conflicts
 const TEST_PORTS = {
@@ -53,11 +54,11 @@ const TEST_PORTS = {
 
 // Mock the MCP SDK modules
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
-  Server: vi.fn().mockImplementation(() => ({
+  Server: vi.fn().mockImplementation(function () { return ({
     connect: vi.fn(),
     setRequestHandler: vi.fn(),
     close: vi.fn()
-  }))
+  }); })
 }));
 
 vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
@@ -65,11 +66,11 @@ vi.mock('@modelcontextprotocol/sdk/server/streamableHttp.js', () => {
   const mockClose = vi.fn();
 
   return {
-    StreamableHTTPServerTransport: vi.fn().mockImplementation((options) => ({
+    StreamableHTTPServerTransport: vi.fn().mockImplementation(function (options) { return ({
       handleRequest: mockHandleRequest,
       close: mockClose,
       options
-    }))
+    }); })
   };
 });
 
@@ -177,7 +178,7 @@ describe('Streamable HTTP Transport', () => {
       };
       
       // Override the mock implementation
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -204,7 +205,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -230,7 +231,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -256,7 +257,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -291,7 +292,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -346,7 +347,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { port });
       
@@ -370,7 +371,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
 
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
       cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -398,7 +399,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
 
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
       cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -446,7 +447,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn()
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { port });
       
@@ -487,12 +488,12 @@ describe('Streamable HTTP Transport', () => {
       let callCount = 0;
       const mockClose = vi.fn();
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
         handleRequest: vi.fn((req, res) => {
           res.json({ jsonrpc: '2.0', result: 'success' });
         }),
         close: mockClose
-      }));
+      }); });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -518,12 +519,12 @@ describe('Streamable HTTP Transport', () => {
       
       const mockClose = vi.fn();
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
         handleRequest: vi.fn((req, res) => {
           res.end();
         }),
         close: mockClose
-      }));
+      }); });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -544,7 +545,7 @@ describe('Streamable HTTP Transport', () => {
       
       const mockTransports: any[] = [];
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => {
+      (StreamableHTTPServerTransport as any).mockImplementation(function () {
         const transport = {
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
@@ -588,7 +589,7 @@ describe('Streamable HTTP Transport', () => {
         close: vi.fn().mockRejectedValue(new Error('Close failed'))
       };
       
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
       cleanup = await startStreamableHTTPServer(mockServer, { 
         port, 
@@ -662,12 +663,12 @@ describe('Streamable HTTP Transport', () => {
       it('should accept requests without protocol version', async () => {
         const port = 3024;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -681,12 +682,12 @@ describe('Streamable HTTP Transport', () => {
       it('should accept valid protocol version (2024-11-05)', async () => {
         const port = TEST_PORTS.PROTOCOL_2024;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -701,12 +702,12 @@ describe('Streamable HTTP Transport', () => {
       it('should accept valid protocol version (2025-06-18)', async () => {
         const port = TEST_PORTS.PROTOCOL_2025;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -721,12 +722,12 @@ describe('Streamable HTTP Transport', () => {
       it('should default to latest protocol version when header is missing', async () => {
         const port = 3042;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -738,7 +739,34 @@ describe('Streamable HTTP Transport', () => {
         // Should not reject requests without protocol version
         expect(response.status).not.toBe(400);
         // Server should set the latest protocol version in response
-        expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
+        expect(response.headers['mcp-protocol-version']).toBe(MCP_PROTOCOL_VERSION);
+      });
+
+      it('should accept every protocol version the bundled SDK supports', async () => {
+        // Conformance: the proxy must negotiate the full set its SDK speaks,
+        // including current revisions like 2025-11-25 and 2025-03-26. Previously
+        // a hardcoded subset rejected up-to-date clients with a 400.
+        expect(SUPPORTED_MCP_PROTOCOL_VERSIONS).toContain('2025-11-25');
+        expect(SUPPORTED_MCP_PROTOCOL_VERSIONS).toContain('2025-03-26');
+
+        let port = 3060;
+        for (const version of SUPPORTED_MCP_PROTOCOL_VERSIONS) {
+          (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
+            handleRequest: vi.fn((req, res) => {
+              res.json({ jsonrpc: '2.0', result: 'success' });
+            }),
+            close: vi.fn()
+          }); });
+
+          cleanup = await startStreamableHTTPServer(mockServer, { port: port++ });
+          const response = await request(`http://localhost:${port - 1}`)
+            .post('/mcp')
+            .set('Mcp-Protocol-Version', version)
+            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+
+          expect(response.status, `version ${version} should be accepted`).not.toBe(400);
+          if (cleanup) { await cleanup(); cleanup = undefined; }
+        }
       });
 
       it('should reject unsupported protocol version', async () => {
@@ -761,12 +789,12 @@ describe('Streamable HTTP Transport', () => {
       it('should send protocol version in response', async () => {
         const port = 3027;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -774,18 +802,18 @@ describe('Streamable HTTP Transport', () => {
           .post('/mcp')
           .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
-        expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
+        expect(response.headers['mcp-protocol-version']).toBe(MCP_PROTOCOL_VERSION);
       });
 
       it('should always respond with Mcp-Protocol-Version header casing', async () => {
         const port = 3028;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -803,8 +831,8 @@ describe('Streamable HTTP Transport', () => {
             .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
 
           // Check that the response header is set (supertest lowercases all headers)
-          // Response always sends latest protocol version (2025-06-18)
-          expect(response.headers['mcp-protocol-version']).toBe('2025-06-18');
+          // Response always advertises the latest protocol version (from the bundled SDK)
+          expect(response.headers['mcp-protocol-version']).toBe(MCP_PROTOCOL_VERSION);
         }
       });
     });
@@ -813,13 +841,13 @@ describe('Streamable HTTP Transport', () => {
       it('should return Mcp-Session-Id with title case in response headers', async () => {
         const port = 3029;
 
-        (StreamableHTTPServerTransport as any).mockImplementation((options: any) => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function (options: any) { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn(),
           options
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -834,13 +862,13 @@ describe('Streamable HTTP Transport', () => {
       it('should accept session header with any casing in request', async () => {
         const port = 3030;
 
-        (StreamableHTTPServerTransport as any).mockImplementation((options: any) => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function (options: any) { return ({
           handleRequest: vi.fn((req, res) => {
             res.json({ jsonrpc: '2.0', result: 'success' });
           }),
           close: vi.fn(),
           options
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -943,12 +971,12 @@ describe('Streamable HTTP Transport', () => {
       it('should return -32603 for internal errors', async () => {
         const port = 3035;
 
-        (StreamableHTTPServerTransport as any).mockImplementation(() => ({
+        (StreamableHTTPServerTransport as any).mockImplementation(function () { return ({
           handleRequest: vi.fn(() => {
             throw new Error('Internal error');
           }),
           close: vi.fn()
-        }));
+        }); });
 
         cleanup = await startStreamableHTTPServer(mockServer, { port });
 
@@ -1046,7 +1074,7 @@ describe('Streamable HTTP Transport', () => {
         handleRequest: vi.fn().mockRejectedValue(new Error('Detailed error message')),
         close: vi.fn()
       };
-      (StreamableHTTPServerTransport as any).mockImplementation(() => mockTransport);
+      (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
       cleanup = await startStreamableHTTPServer(mockServer, { port });
 

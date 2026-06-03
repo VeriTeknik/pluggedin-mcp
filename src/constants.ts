@@ -5,18 +5,30 @@
  * to ensure consistency across the codebase and prevent typos.
  */
 
-/**
- * Supported MCP protocol versions (for backward compatibility)
- * @see https://spec.modelcontextprotocol.io/
- */
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = ['2024-11-05', '2025-06-18'] as const;
+import {
+  LATEST_PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/sdk/types.js';
 
 /**
- * Current MCP protocol version (latest supported)
- * Used in response headers to indicate server capabilities
- * @see https://spec.modelcontextprotocol.io/
+ * Supported MCP protocol versions (for backward compatibility).
+ *
+ * Derived from the bundled @modelcontextprotocol/sdk so that the proxy always
+ * accepts exactly the revisions its SDK can actually speak. Hardcoding a subset
+ * caused current clients (e.g. negotiating 2025-11-25) to be rejected with a
+ * 400 even though the SDK fully supported them. Bumping the SDK now updates
+ * negotiation automatically.
+ *
+ * @see https://modelcontextprotocol.io/specification
  */
-export const MCP_PROTOCOL_VERSION = '2025-06-18';
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS;
+
+/**
+ * Current MCP protocol version (latest supported by the bundled SDK).
+ * Used in response headers to indicate server capabilities.
+ * @see https://modelcontextprotocol.io/specification
+ */
+export const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
 
 /**
  * HTTP header names for MCP protocol

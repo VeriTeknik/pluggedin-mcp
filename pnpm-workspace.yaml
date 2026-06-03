@@ -1,0 +1,31 @@
+# Dependency overrides for security patches (Dependabot alerts).
+# pnpm 10.4+ reads `overrides` from this file (the `pnpm.overrides` field in
+# package.json is no longer read by pnpm 11+). Versions are pinned exactly.
+# Selector `pkg@<X` only overrides when the resolved version is vulnerable (< X).
+overrides:
+  # --- Hono / MCP SDK transport stack ---
+  hono@<4.12.23: 4.12.23
+  '@hono/node-server@<1.19.14': 1.19.14
+  # --- Express / routing stack ---
+  express-rate-limit@>=8.2.0 <8.2.2: 8.2.2
+  path-to-regexp@>=8.0.0 <8.4.0: 8.4.0
+  qs@<6.15.2: 6.15.2
+  follow-redirects@<1.16.0: 1.16.0
+  ip-address@<10.2.0: 10.2.0
+  # --- Build / test toolchain (vite/vitest transitive) ---
+  vite@<7.3.5: 7.3.5
+  rollup@>=4.0.0 <4.59.0: 4.59.0
+  postcss@<8.5.15: 8.5.15
+  picomatch@<4.0.4: 4.0.4
+  # --- Shared utilities ---
+  flatted@<3.4.2: 3.4.2
+  ajv@>=8.0.0 <8.18.0: 8.18.0
+  fast-uri@<3.1.2: 3.1.2
+
+# Allow build scripts only for trusted, build-essential packages (pnpm 10+
+# blocks lifecycle scripts by default). esbuild is required by vite/vitest.
+onlyBuiltDependencies:
+  - esbuild
+
+allowBuilds:
+  esbuild: true

@@ -4,7 +4,7 @@
  * MCP Protocol Compliance:
  * - Headers use Title-Case per MCP spec (Mcp-Session-Id, Mcp-Protocol-Version)
  * - CORS headers expose custom headers to clients
- * - Protocol version validation (2024-11-05)
+ * - Protocol version validation (negotiated against the bundled SDK's supported set)
  * - JSON-RPC 2.0 compliant error codes
  *
  * JSON-RPC Error Codes Used:
@@ -238,16 +238,27 @@ export async function startStreamableHTTPServer(
   // Default to localhost for security, but allow override via BIND_HOST
   // In Docker/Cloud (Smithery), Dockerfile sets BIND_HOST=0.0.0.0 to accept external connections
   const host = process.env.BIND_HOST || 'localhost';
-  const httpServer = app.listen(port, host, () => {
-    debugLog(`Streamable HTTP server listening on ${host}:${port}`);
-    if (stateless) {
-      debugLog('Running in stateless mode');
-    } else {
-      debugLog('Running in stateful mode (session-based)');
-    }
-    if (requireApiAuth) {
-      debugLog('API authentication required');
-    }
+  // Await the `listening` event so callers (and the returned cleanup function)
+  // only see a fully bound server. Resolving before the socket is bound caused
+  // ECONNREFUSED races for any code that connects immediately after awaiting.
+  const httpServer = await new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+    const onStartupError = (err: Error) => reject(err);
+    const srv = app.listen(port, host, () => {
+      // Bind succeeded: drop the startup-error listener so later runtime errors
+      // aren't swallowed by this already-settled promise's reject handler.
+      srv.removeListener('error', onStartupError);
+      debugLog(`Streamable HTTP server listening on ${host}:${port}`);
+      if (stateless) {
+        debugLog('Running in stateless mode');
+      } else {
+        debugLog('Running in stateful mode (session-based)');
+      }
+      if (requireApiAuth) {
+        debugLog('API authentication required');
+      }
+      resolve(srv);
+    });
+    srv.once('error', onStartupError);
   });
 
   // Return cleanup function

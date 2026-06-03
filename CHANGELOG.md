@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-06-04
+
+### Security
+- **Resolved all open Dependabot alerts (38 → 0).**
+  - Bumped `axios` to `^1.17.0` (MitM / prototype-pollution advisories).
+  - Bumped `vitest` and `@vitest/ui` to `^4.1.8` (critical: Vitest UI server arbitrary file read; only patched in ≥4.1.0).
+  - Added/updated transitive pins: `hono 4.12.23`, `@hono/node-server 1.19.14`, `qs 6.15.2`, `vite 7.3.5`, `flatted 3.4.2`, `follow-redirects 1.16.0`, `ip-address 10.2.0`, `postcss 8.5.15`, `fast-uri 3.1.2`.
+
+### Changed
+- **MCP protocol version negotiation now derives from the bundled `@modelcontextprotocol/sdk`.** Supported versions and the advertised latest are read from the SDK's `SUPPORTED_PROTOCOL_VERSIONS` / `LATEST_PROTOCOL_VERSION`, so negotiation tracks the SDK automatically. The proxy now negotiates **2025-11-25** (and 2025-03-26); previously these were rejected with HTTP 400.
+- Migrated pnpm dependency overrides from `package.json` `pnpm.overrides` to `pnpm-workspace.yaml` (no longer read by pnpm 11+). Pinned toolchain via `packageManager: pnpm@11.5.1`; raised `engines.pnpm` to `>=10.4.0`.
+
+### Fixed
+- **`startStreamableHTTPServer` now awaits the `listening` event before resolving**, eliminating an `ECONNREFUSED` race for clients/tests connecting immediately after startup. The bind-time `error` listener is removed once listening succeeds so later runtime errors aren't silently swallowed.
+- Updated Streamable HTTP test mocks for vitest 4 (constructor mocks invoked with `new` must use `function`, not arrow).
+
 ## [1.10.5] - 2025-01-25
 
 ### Fixed

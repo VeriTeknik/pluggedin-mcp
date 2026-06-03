@@ -242,7 +242,11 @@ export async function startStreamableHTTPServer(
   // only see a fully bound server. Resolving before the socket is bound caused
   // ECONNREFUSED races for any code that connects immediately after awaiting.
   const httpServer = await new Promise<ReturnType<typeof app.listen>>((resolve, reject) => {
+    const onStartupError = (err: Error) => reject(err);
     const srv = app.listen(port, host, () => {
+      // Bind succeeded: drop the startup-error listener so later runtime errors
+      // aren't swallowed by this already-settled promise's reject handler.
+      srv.removeListener('error', onStartupError);
       debugLog(`Streamable HTTP server listening on ${host}:${port}`);
       if (stateless) {
         debugLog('Running in stateless mode');
@@ -254,7 +258,7 @@ export async function startStreamableHTTPServer(
       }
       resolve(srv);
     });
-    srv.on('error', reject);
+    srv.once('error', onStartupError);
   });
 
   // Return cleanup function

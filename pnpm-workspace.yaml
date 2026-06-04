@@ -29,3 +29,11 @@ onlyBuiltDependencies:
 
 allowBuilds:
   esbuild: true
+
+# Supply-chain cooldown (pnpm's default minimumReleaseAge) exclusion.
+# axios 1.17.0 was pulled deliberately to patch security advisories and is newer
+# than the cooldown window, which would otherwise block frozen installs (e.g. the
+# Docker build). The exclusion is scoped to this exact version and becomes a
+# no-op once it ages past the cooldown; the policy stays active for everything else.
+minimumReleaseAgeExclude:
+  - axios@1.17.0

@@ -1,5 +1,7 @@
 # Build stage
-FROM node:20-slim AS builder
+# Node 24: pnpm 11 (pinned via packageManager) requires a newer Node than 20,
+# which fails with ERR_UNKNOWN_BUILTIN_MODULE. Node 24 still bundles corepack.
+FROM node:24-slim AS builder
 
 WORKDIR /app
 
@@ -25,7 +27,7 @@ COPY . .
 RUN pnpm run build
 
 # Production stage
-FROM node:20-slim
+FROM node:24-slim
 
 WORKDIR /app
 

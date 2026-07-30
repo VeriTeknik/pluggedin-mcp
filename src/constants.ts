@@ -52,7 +52,12 @@ export const SESSION_CLEANUP_INTERVAL_MS = 60 * 1000; // 1 minute
 export const MAX_SESSIONS = 10000; // Maximum concurrent sessions
 
 /**
- * JSON-RPC 2.0 error codes used in MCP
+ * Legacy JSON-RPC error codes. These sit in the implementation-defined
+ * -32000..-32019 partition and are grandfathered by the 2026-07-28 error-code
+ * allocation policy — do NOT renumber them.
+ *
+ * Spec-reserved codes (-32020 and below) live in ./protocol/errors.ts.
+ *
  * @see https://www.jsonrpc.org/specification
  */
 export const JSON_RPC_ERROR_CODES = {

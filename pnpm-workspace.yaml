@@ -10,7 +10,10 @@ overrides:
   # backslash. Only patched in 2.0.5, i.e. a major bump — legitimate because
   # @modelcontextprotocol/sdk 1.30.0 widened its range to `^1.19.9 || ^2.0.5`.
   # This override therefore REQUIRES the SDK at >=1.30.0; do not lower it.
-  '@hono/node-server@<2.0.5': 2.0.5
+  # Round 2: 2.0.5 — the version this override previously targeted — is itself
+  # covered by a later advisory (<=2.0.9). SDK 1.30.0's '^1.19.9 || ^2.0.5'
+  # range admits 2.0.10, so the coupling below still holds.
+  '@hono/node-server@<2.0.10': 2.0.10
   # --- Express / routing stack ---
   express-rate-limit@>=8.2.0 <8.2.2: 8.2.2
   path-to-regexp@>=8.0.0 <8.4.0: 8.4.0
@@ -22,7 +25,8 @@ overrides:
   # --- Build / test toolchain (vite/vitest transitive) ---
   vite@<7.3.5: 7.3.5
   rollup@>=4.0.0 <4.59.0: 4.59.0
-  postcss@<8.5.15: 8.5.15
+  # GHSA round 2: <=8.5.17 vulnerable.
+  postcss@<8.5.18: 8.5.18
   picomatch@<4.0.4: 4.0.4
   # GHSA-g7r4-m6w7-qqqr, reached via vite <- vitest (dev only).
   esbuild@>=0.27.3 <0.28.1: 0.28.1

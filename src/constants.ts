@@ -5,30 +5,29 @@
  * to ensure consistency across the codebase and prevent typos.
  */
 
-import {
-  LATEST_PROTOCOL_VERSION,
-  SUPPORTED_PROTOCOL_VERSIONS,
-} from '@modelcontextprotocol/sdk/types.js';
+import { LATEST_REVISION, REVISIONS } from './protocol/versions.js';
 
 /**
- * Supported MCP protocol versions (for backward compatibility).
+ * Supported MCP protocol revisions.
  *
- * Derived from the bundled @modelcontextprotocol/sdk so that the proxy always
- * accepts exactly the revisions its SDK can actually speak. Hardcoding a subset
- * caused current clients (e.g. negotiating 2025-11-25) to be rejected with a
- * 400 even though the SDK fully supported them. Bumping the SDK now updates
- * negotiation automatically.
+ * Sourced from ./protocol/versions.ts, NOT from the SDK. As of SDK 1.30.0 the
+ * bundled SDK tops out at 2025-11-25 while this proxy also speaks 2026-07-28
+ * via the hand-rolled bridge in ./protocol/. Deriving from the SDK would both
+ * hide 2026-07-28 today and silently start advertising it — handshake and all —
+ * the moment the SDK bumps.
+ *
+ * Note the previous comment here was right that hardcoding a SUBSET broke
+ * clients negotiating 2025-11-25. The registry is a superset of what the SDK
+ * speaks, so that regression cannot recur.
  *
  * @see https://modelcontextprotocol.io/specification
  */
-export const SUPPORTED_MCP_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS;
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = REVISIONS;
 
 /**
- * Current MCP protocol version (latest supported by the bundled SDK).
- * Used in response headers to indicate server capabilities.
- * @see https://modelcontextprotocol.io/specification
+ * Newest revision this proxy advertises. Sent in response headers.
  */
-export const MCP_PROTOCOL_VERSION = LATEST_PROTOCOL_VERSION;
+export const MCP_PROTOCOL_VERSION = LATEST_REVISION;
 
 /**
  * HTTP header names for MCP protocol

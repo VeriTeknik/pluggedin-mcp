@@ -247,7 +247,7 @@ pluggedin_create_document({
 
 ### Prerequisites
 
-- Node.js 18+ (recommended v20+)
+- Node.js 22.12+ (the floor `engines.node` declares; sanitize-html requires it)
 - An API key from the plugged.in App (get one at [plugged.in/api-keys](https://plugged.in/api-keys))
 
 ### Installation

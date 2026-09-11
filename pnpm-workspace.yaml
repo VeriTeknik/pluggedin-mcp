@@ -6,7 +6,11 @@ overrides:
   # --- Hono / MCP SDK transport stack ---
   # GHSA-88fw-hqm2-52qc (high) + 6 medium advisories are all fixed by 4.12.27.
   # Round 3: 4.12.27 is itself covered by four later advisories.
-  hono@<4.12.34: 4.12.34
+  # 2026-09-11: advisory moved past the previous pin — updated in place rather
+  # than adding a second hono entry. Two selectors for one package do not merge;
+  # the later one wins, which is how fast-uri and smol-toml each stayed on a
+  # vulnerable version while the list appeared to cover them.
+  hono@<4.13.5: 4.13.5
   # GHSA-frvp-7c67-39w9: path traversal in serve-static on Windows via encoded
   # backslash. Only patched in 2.0.5, i.e. a major bump — legitimate because
   # @modelcontextprotocol/sdk 1.30.0 widened its range to `^1.19.9 || ^2.0.5`.
@@ -26,6 +30,10 @@ overrides:
   # GHSA-v422-hmwv-36x6, reached via express 5.2.1.
   body-parser@>=2.0.0 <2.3.0: 2.3.0
   # --- Build / test toolchain (vite/vitest transitive) ---
+  # GHSA-px8p-9vwx-vf98: unzipSync loops forever on a malformed ZIP64 archive.
+  # Reached only through @vitest/ui, so test-time and nothing attacker-supplied
+  # goes near it — updated because it costs nothing.
+  'fflate@>=0.8.0 <0.8.3': '>=0.8.3 <0.9.0'
   vite@<7.3.5: 7.3.5
   rollup@>=4.0.0 <4.59.0: 4.59.0
   # GHSA round 2: <=8.5.17 vulnerable.

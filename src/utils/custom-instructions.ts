@@ -3,6 +3,8 @@
  * Helper functions for extracting and managing custom instructions
  */
 
+import { debugError } from '../debug-log.js';
+
 /**
  * Message format from MCP servers
  */
@@ -177,7 +179,8 @@ export function extractCustomInstructions(serverData: any): McpMessage[] | null 
   // Handle both array and single instruction formats
   if (Array.isArray(serverData.customInstructions)) {
     // Check if it's already in McpMessage format (has role and content)
-    if (serverData.customInstructions.length > 0 && 
+    if (serverData.customInstructions.length > 0 &&
+        serverData.customInstructions[0] !== null &&
         typeof serverData.customInstructions[0] === 'object' &&
         'role' in serverData.customInstructions[0] &&
         'content' in serverData.customInstructions[0]) {
@@ -332,19 +335,25 @@ export function buildServerContextsMap(servers: any[]): Map<string, ProcessedSer
   const contexts = new Map<string, ProcessedServerContext>();
   
   servers.forEach(server => {
-    const instructions = extractCustomInstructions(server);
-    if (!instructions) {
-      return;
-    }
-    
-    const processedContext = processInstructions(
-      server.name || server.uuid,
-      server.uuid,
-      instructions
-    );
-    
-    if (processedContext) {
-      contexts.set(server.uuid, processedContext);
+    // Instructions come from the API unvalidated; a malformed value must only
+    // cost this server its context, not every other server's
+    try {
+      const instructions = extractCustomInstructions(server);
+      if (!instructions) {
+        return;
+      }
+
+      const processedContext = processInstructions(
+        server.name || server.uuid,
+        server.uuid,
+        instructions
+      );
+
+      if (processedContext) {
+        contexts.set(server.uuid, processedContext);
+      }
+    } catch (error) {
+      debugError(`[Custom Instructions] Skipping malformed custom instructions for server ${server?.uuid}:`, error);
     }
   });
   

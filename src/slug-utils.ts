@@ -2,7 +2,9 @@
  * Slug utilities for MCP proxy
  * Used for slug-based tool prefixing to resolve name collisions
  * 
- * Security: All input is sanitized to prevent XSS attacks while allowing valid tool name characters
+ * Security: Slug and prefixed-name generation sanitize input to prevent XSS attacks while allowing
+ * valid tool name characters. parsePrefixedToolName (used for routing) returns the tool name verbatim,
+ * since it is forwarded to the downstream server rather than rendered.
  * Performance: Uses LRU cache for frequently used slugs
  */
 
@@ -36,30 +38,6 @@ function sanitizeInput(input: string): string {
 
   // Final cleanup - remove any remaining dangerous characters (especially for HTML attribute context)
   sanitized = sanitized.replace(/[<>"&]/g, '');
-
-  return sanitized;
-}
-
-/**
- * Sanitizes tool names less aggressively - removes HTML/script but preserves more characters.
- * This is suitable for UUID-based prefixes where the server identifier is already trusted.
- * Uses sanitize-html library for robust HTML/script removal.
- * @param input - The tool name to sanitize
- * @returns Sanitized string
- */
-function sanitizeToolName(input: string): string {
-  // Use sanitize-html to remove HTML/script content while preserving tool-name chars
-  let sanitized = sanitizeHtml(input, {
-    allowedTags: [], // Remove all HTML tags
-    allowedAttributes: {}, // Remove all HTML attributes
-    disallowedTagsMode: 'discard', // Discard disallowed tags completely
-    parser: {
-      decodeEntities: false // Don't decode HTML entities
-    }
-  });
-
-  // Remove only the most dangerous characters, preserve @ # and other tool-name chars
-  sanitized = sanitized.replace(/[<>'"&]/g, '');
 
   return sanitized;
 }
@@ -280,6 +258,9 @@ export function isValidUuid(uuid: string): boolean {
 /**
  * Shared helper for parsing prefixed tool names (slug or UUID-based)
  * This reduces duplication and centralizes prefix detection logic
+ *
+ * originalName is the exact suffix: it is the name sent to the downstream server,
+ * so it must not be sanitized (a rewritten name would call a different tool).
  * @param toolName - The potentially prefixed tool name
  * @returns Parsed result with originalName, serverIdentifier, and prefixType, or null if not prefixed
  */
@@ -304,10 +285,8 @@ export function parsePrefixedToolName(toolName: unknown): ParsedPrefixedToolName
 
   // Try UUID first (more specific format)
   if (isValidUuid(serverIdentifier)) {
-    // Use less aggressive sanitization for UUID-based prefixes
-    const sanitizedOriginalName = sanitizeToolName(originalName);
     return {
-      originalName: sanitizedOriginalName,
+      originalName,
       serverIdentifier,
       prefixType: 'uuid'
     };
@@ -315,10 +294,8 @@ export function parsePrefixedToolName(toolName: unknown): ParsedPrefixedToolName
 
   // Try slug (broader format)
   if (isValidSlug(serverIdentifier)) {
-    // Sanitize only the originalName to prevent XSS
-    const sanitizedOriginalName = sanitizeInput(originalName);
     return {
-      originalName: sanitizedOriginalName,
+      originalName,
       serverIdentifier,
       prefixType: 'slug'
     };

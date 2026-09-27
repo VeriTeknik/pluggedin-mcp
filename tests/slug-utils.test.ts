@@ -6,7 +6,8 @@ import {
   createSlugPrefixedToolName,
   parseSlugPrefixedToolName,
   clearSlugCache,
-  getSlugCacheSize
+  getSlugCacheSize,
+  parsePrefixedToolName
 } from '../src/slug-utils';
 
 describe('Slug Utilities', () => {
@@ -231,6 +232,35 @@ describe('Slug Utilities', () => {
       
       // Cache should not exceed MAX_CACHE_SIZE
       expect(getSlugCacheSize()).toBeLessThanOrEqual(1000);
+    });
+  });
+
+  describe('parsePrefixedToolName (routing parser)', () => {
+    const uuid = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('keeps the exact downstream tool name after a slug prefix', () => {
+      expect(parsePrefixedToolName('my-server__lookup@account')).toEqual({
+        originalName: 'lookup@account',
+        serverIdentifier: 'my-server',
+        prefixType: 'slug'
+      });
+      expect(parsePrefixedToolName('my-server__search:v2')?.originalName).toBe('search:v2');
+    });
+
+    it('keeps the exact downstream tool name after a UUID prefix', () => {
+      expect(parsePrefixedToolName(`${uuid}__rock&roll`)).toEqual({
+        originalName: 'rock&roll',
+        serverIdentifier: uuid,
+        prefixType: 'uuid'
+      });
+      expect(parsePrefixedToolName(`${uuid}__<b>tool</b>`)?.originalName).toBe('<b>tool</b>');
+    });
+
+    it('returns null for unprefixed names and invalid identifiers', () => {
+      expect(parsePrefixedToolName('read_file')).toBe(null);
+      expect(parsePrefixedToolName('Not A Slug__tool')).toBe(null);
+      expect(parsePrefixedToolName('server__')).toBe(null);
+      expect(parsePrefixedToolName(null)).toBe(null);
     });
   });
 });

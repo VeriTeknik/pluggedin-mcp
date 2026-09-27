@@ -29,18 +29,28 @@ export const getPluggedinMCPApiKey = (apiKey?: string): string | undefined => {
   return key;
 };
 
+let invalidBaseUrlWarned = false;
+
 // Helper function to get the API base URL, prioritizing argument, then env var, then default
 export const getPluggedinMCPApiBaseUrl = (baseUrl?: string): string | undefined => {
-  // Prioritize argument, then environment variable, then settings.local.json, then default
+  // Prioritize argument, then environment variable, then user-level config files, then default
   const url = baseUrl || process.env.PLUGGEDIN_API_BASE_URL || getSettingsEnvVar('PLUGGEDIN_API_BASE_URL') || 'https://plugged.in';
   
   if (!url) {
     return undefined;
   }
   
-  // Validate URL format (use validateApiUrl which allows localhost)
+  // The API key is sent to this URL: https only (http for loopback), no embedded credentials
   if (!validateApiUrl(url)) {
-    debugError("Invalid API base URL format detected");
+    // debugError is silent in STDIO mode, so tell the user once on stderr.
+    // The URL itself is not echoed: it may contain credentials.
+    if (!invalidBaseUrlWarned) {
+      invalidBaseUrlWarned = true;
+      console.error(
+        "[pluggedin-mcp] Invalid PLUGGEDIN_API_BASE_URL: it must use https (plain http is allowed only " +
+        "for localhost, 127.0.0.1 and [::1]) and must not contain credentials. Plugged.in API calls are disabled."
+      );
+    }
     return undefined;
   }
   

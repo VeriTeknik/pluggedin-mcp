@@ -29,12 +29,50 @@ function validateCommand(command: string): boolean {
   return /^[a-zA-Z0-9\-_./]+$/.test(command);
 }
 
-// Validate arguments to prevent injection
-function validateArgs(args: string[]): string[] {
-  return args.map(arg => {
-    // Remove any shell metacharacters that could be dangerous
-    return String(arg).replace(/[;&|`$()<>\\]/g, '');
-  });
+// Validate arguments. The STDIO transport spawns without a shell (cross-spawn with
+// shell: false; on Windows cross-spawn escapes cmd.exe metacharacters itself), so
+// arguments are passed through unchanged. Rewriting them would corrupt legitimate
+// values such as passwords, URLs and Windows paths without adding any protection.
+// Returns undefined if any argument cannot be passed to a process (NUL byte).
+function validateArgs(args: string[]): string[] | undefined {
+  const validated = args.map(arg => String(arg));
+  return validated.some(arg => arg.includes('\0')) ? undefined : validated;
+}
+
+// Build an auth provider from the configured OAuth token or OAuth settings
+function createAuthProvider(serverParams: ServerParameters): any {
+  if (serverParams.oauthToken) {
+    // Create a simple auth provider that returns the token
+    return {
+      tokens: async () => ({ access_token: serverParams.oauthToken }),
+      authorize: async () => { throw new Error("Authorization not implemented"); },
+      refresh: async () => { throw new Error("Refresh not implemented"); }
+    };
+  } else if (serverParams.oauth) {
+    // Create a more comprehensive auth provider for OAuth flows
+    return {
+      tokens: async () => {
+        // If we have a stored token, return it
+        if (serverParams.oauthToken) {
+          return { access_token: serverParams.oauthToken };
+        }
+        // Otherwise, trigger authorization flow
+        throw new Error("Authorization required");
+      },
+      authorize: async () => {
+        // This would trigger the OAuth authorization flow
+        // The actual implementation depends on the OAuth provider
+        debugError(`OAuth authorization required for ${serverParams.name}`);
+        throw new Error("OAuth authorization required - please authorize through the UI");
+      },
+      refresh: async (_refreshToken: string) => {
+        // Implement token refresh if supported by the provider
+        debugError(`OAuth token refresh not implemented for ${serverParams.name}`);
+        throw new Error("Token refresh not implemented");
+      }
+    };
+  }
+  return undefined;
 }
 
 // Validate environment variables
@@ -64,9 +102,15 @@ export const createPluggedinMCPClient = (
       return { client: undefined, transport: undefined };
     }
 
+    const args = serverParams.args ? validateArgs(serverParams.args) : undefined;
+    if (serverParams.args && !args) {
+      debugError(`Invalid arguments for server ${serverParams.name}: arguments must not contain NUL bytes`);
+      return { client: undefined, transport: undefined };
+    }
+
     const stdioParams: StdioServerParameters = {
       command: serverParams.command,
-      args: serverParams.args ? validateArgs(serverParams.args) : undefined,
+      args,
       env: serverParams.env ? validateEnv(serverParams.env) : undefined,
       // Use default values for other optional properties
       // stderr and cwd will use their default values
@@ -81,7 +125,18 @@ export const createPluggedinMCPClient = (
         debugError(`Invalid protocol for SSE server ${serverParams.name}: ${url.protocol}`);
         return { client: undefined, transport: undefined };
       }
-      transport = new SSEClientTransport(url);
+      // Headers apply to both the event stream and posted messages
+      const transportOptions: any = {};
+      if (serverParams.headers) {
+        transportOptions.requestInit = { headers: serverParams.headers };
+        debugLog(`[MCP] SSE transport: Adding ${Object.keys(serverParams.headers).length} custom headers for ${serverParams.name}`);
+      }
+      const authProvider = createAuthProvider(serverParams);
+      if (authProvider) {
+        transportOptions.authProvider = authProvider;
+      }
+
+      transport = new SSEClientTransport(url, transportOptions);
     } catch (error) {
       debugError(`Invalid URL for SSE server ${serverParams.name}: ${serverParams.url}`);
       return { client: undefined, transport: undefined };
@@ -114,38 +169,11 @@ export const createPluggedinMCPClient = (
       }
       
       // Add OAuth configuration if provided
-      if (serverParams.oauthToken) {
-        // Create a simple auth provider that returns the token
-        transportOptions.authProvider = {
-          tokens: async () => ({ access_token: serverParams.oauthToken }),
-          authorize: async () => { throw new Error("Authorization not implemented"); },
-          refresh: async () => { throw new Error("Refresh not implemented"); }
-        };
-      } else if (serverParams.oauth) {
-        // Create a more comprehensive auth provider for OAuth flows
-        transportOptions.authProvider = {
-          tokens: async () => {
-            // If we have a stored token, return it
-            if (serverParams.oauthToken) {
-              return { access_token: serverParams.oauthToken };
-            }
-            // Otherwise, trigger authorization flow
-            throw new Error("Authorization required");
-          },
-          authorize: async () => {
-            // This would trigger the OAuth authorization flow
-            // The actual implementation depends on the OAuth provider
-            debugError(`OAuth authorization required for ${serverParams.name}`);
-            throw new Error("OAuth authorization required - please authorize through the UI");
-          },
-          refresh: async (_refreshToken: string) => {
-            // Implement token refresh if supported by the provider
-            debugError(`OAuth token refresh not implemented for ${serverParams.name}`);
-            throw new Error("Token refresh not implemented");
-          }
-        };
+      const authProvider = createAuthProvider(serverParams);
+      if (authProvider) {
+        transportOptions.authProvider = authProvider;
       }
-      
+
       transport = new StreamableHTTPClientTransport(url, transportOptions);
     } catch (error) {
       debugError(`Invalid URL for Streamable HTTP server ${serverParams.name}: ${serverParams.url}`);

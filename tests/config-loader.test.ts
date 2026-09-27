@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import fs from 'fs';
 import os from 'os';
+import path from 'path';
 
 // Mock fs and os before importing the module
 vi.mock('fs');
@@ -9,10 +10,15 @@ vi.mock('os');
 // Import after mocks
 import { getSettingsEnvVar, clearSettingsCache } from '../src/config-loader.js';
 
+const projectSettingsPath = path.join(process.cwd(), '.claude', 'settings.local.json');
+
 describe('config-loader', () => {
+  let errorSpy: MockInstance<typeof console.error>;
+
   beforeEach(() => {
     clearSettingsCache();
     vi.mocked(os.homedir).mockReturnValue('/home/testuser');
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -94,7 +100,10 @@ describe('config-loader', () => {
     expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBe('user_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
   });
 
-  it('project-level settings override user-level settings', () => {
+  // The working directory is whatever project the MCP client has open, which
+  // may be an untrusted clone, so its .claude/settings.local.json must never
+  // supply credentials or the API destination.
+  it('ignores project-level settings; user-level settings are used', () => {
     vi.mocked(fs.statSync).mockImplementation((filePath: any) => {
       const p = String(filePath);
       if (p.includes('.config/pluggedin')) throw new Error('ENOENT');
@@ -109,7 +118,102 @@ describe('config-loader', () => {
       return JSON.stringify({ env: { PLUGGEDIN_API_KEY: 'project_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' } });
     });
 
-    expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBe('project_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+    expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBe('user_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+  });
+
+  it('never reads a value from project-level settings, even when no other source has it', () => {
+    vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as fs.Stats);
+    vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
+      const p = String(filePath);
+      if (p.includes('.config/pluggedin/credentials.json')) {
+        // Key only: a project-supplied base URL must not be paired with it
+        return JSON.stringify({ api_key: 'credentials_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' });
+      }
+      if (p === projectSettingsPath) {
+        return JSON.stringify({
+          env: {
+            PLUGGEDIN_API_BASE_URL: 'https://attacker.example',
+            PLUGGEDIN_API_KEY: 'project_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+          },
+        });
+      }
+      throw new Error('ENOENT');
+    });
+
+    expect(getSettingsEnvVar('PLUGGEDIN_API_BASE_URL')).toBeUndefined();
+    expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBe('credentials_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+  });
+
+  it('warns once on stderr (never stdout) when project-level settings hold PLUGGEDIN_* keys', () => {
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    let userMtime = 1000;
+    vi.mocked(fs.statSync).mockImplementation((filePath: any) => {
+      const p = String(filePath);
+      if (p.startsWith('/home/testuser/.claude')) return { mtimeMs: userMtime } as fs.Stats;
+      throw new Error('ENOENT');
+    });
+    vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
+      const p = String(filePath);
+      if (p === projectSettingsPath) {
+        return JSON.stringify({ env: { PLUGGEDIN_API_BASE_URL: 'https://attacker.example', OTHER: 'x' } });
+      }
+      if (p.startsWith('/home/testuser/.claude')) {
+        return JSON.stringify({ env: { PLUGGEDIN_API_KEY: 'user_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' } });
+      }
+      throw new Error('ENOENT');
+    });
+
+    getSettingsEnvVar('PLUGGEDIN_API_KEY');
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const message = String(errorSpy.mock.calls[0][0]);
+    expect(message).toContain(projectSettingsPath);
+    expect(message).toContain('PLUGGEDIN_API_BASE_URL');
+    expect(message).toContain('credentials.json');
+    // Names only: the value (which may be a key) is never echoed
+    expect(message).not.toContain('attacker.example');
+    expect(stdoutSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
+
+    // A later re-read (TTL expired, user file changed) does not warn again
+    now += 10_000;
+    userMtime = 2000;
+    getSettingsEnvVar('PLUGGEDIN_API_KEY');
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not warn when project-level settings hold no PLUGGEDIN_* keys', () => {
+    vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as fs.Stats);
+    vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
+      const p = String(filePath);
+      if (p === projectSettingsPath) {
+        return JSON.stringify({ env: { SOME_OTHER_TOOL: 'value' } });
+      }
+      throw new Error('ENOENT');
+    });
+
+    getSettingsEnvVar('PLUGGEDIN_API_KEY');
+
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not warn when the working directory is the home directory', () => {
+    // ./.claude/settings.local.json is then the user-level file itself
+    vi.mocked(os.homedir).mockReturnValue(process.cwd());
+    vi.mocked(fs.statSync).mockReturnValue({ mtimeMs: 1000 } as fs.Stats);
+    vi.mocked(fs.readFileSync).mockImplementation((filePath: any) => {
+      const p = String(filePath);
+      if (p === projectSettingsPath) {
+        return JSON.stringify({ env: { PLUGGEDIN_API_KEY: 'user_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' } });
+      }
+      throw new Error('ENOENT');
+    });
+
+    expect(getSettingsEnvVar('PLUGGEDIN_API_KEY')).toBe('user_level_key_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it('handles malformed JSON gracefully', () => {

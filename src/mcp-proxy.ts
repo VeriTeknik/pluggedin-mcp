@@ -82,9 +82,16 @@ import {
   memoryObserveStaticTool,
   memorySearchStaticTool,
   memoryDetailsStaticTool,
+  cbpQueryStaticTool,
+  cbpFeedbackStaticTool,
+  memorySearchWithContextStaticTool,
+  memoryIndividuationStaticTool,
   STATIC_TOOLS_COUNT
 } from "./tools/static-tools.js";
 import { StaticToolHandlers } from "./handlers/static-handlers.js";
+import { MarkNotificationDoneInputSchema, DeleteNotificationInputSchema } from "./schemas/index.js";
+import { RESOURCE_REGISTRY } from "./resources/registry.js";
+import { ensureAuth } from "./resources/helpers.js";
 import { formatCustomInstructionsForDiscovery } from "./utils/custom-instructions.js";
 import {
   parsePrefixedToolName as parseAnyPrefixedToolName,
@@ -95,8 +102,8 @@ import { SERVER_INSTRUCTIONS } from "./server-instructions.js";
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
 
-// Map to store prefixed tool name -> { originalName, serverUuid }
-const toolToServerMap: Record<string, { originalName: string; serverUuid: string; }> = {};
+// Map to store prefixed tool name -> { originalName, serverUuid, serverSlug }
+const toolToServerMap: Record<string, { originalName: string; serverUuid: string; serverSlug?: string; }> = {};
 
 // Configuration for UUID-based tool prefixing
 // Set PLUGGEDIN_UUID_TOOL_PREFIXING=false to disable UUID prefixing (for backward compatibility)
@@ -264,6 +271,7 @@ const markNotificationDoneStaticTool: Tool = {
     properties: {
       notificationId: {
         type: "string",
+        format: "uuid",
         description: "The ID of the notification to mark as read"
       }
     },
@@ -276,11 +284,6 @@ const markNotificationDoneStaticTool: Tool = {
   }
 };
 
-// Input schema for mark notification done validation
-const MarkNotificationDoneInputSchema = z.object({
-  notificationId: z.string().min(1, "Notification ID cannot be empty"),
-});
-
 // Define the static tool for deleting notification
 const deleteNotificationStaticTool: Tool = {
   name: "pluggedin_delete_notification",
@@ -290,6 +293,7 @@ const deleteNotificationStaticTool: Tool = {
     properties: {
       notificationId: {
         type: "string",
+        format: "uuid",
         description: "The ID of the notification to delete"
       }
     },
@@ -302,11 +306,6 @@ const deleteNotificationStaticTool: Tool = {
   }
 };
 
-// Input schema for delete notification validation
-const DeleteNotificationInputSchema = z.object({
-  notificationId: z.string().min(1, "Notification ID cannot be empty"),
-});
-
 
 // Define the static prompt for proxy capabilities
 const proxyCapabilitiesStaticPrompt = {
@@ -315,11 +314,46 @@ const proxyCapabilitiesStaticPrompt = {
   arguments: []
 } as const;
 
-export const createServer = async () => {
-  // Create rate limiters for different operations
-  const toolCallRateLimiter = new RateLimiter(60000, 60); // 60 calls per minute
-  const apiCallRateLimiter = new RateLimiter(60000, 100); // 100 API calls per minute
-  
+/**
+ * Rate limiters guard the owner's Plugged.in API quota, so every Server in the
+ * process shares one pair; per-session Servers must not multiply the limits.
+ */
+interface ProxyRateLimiters {
+  toolCallRateLimiter: RateLimiter;
+  apiCallRateLimiter: RateLimiter;
+}
+
+const createRateLimiters = (): ProxyRateLimiters => ({
+  toolCallRateLimiter: new RateLimiter(60000, 60), // 60 calls per minute
+  apiCallRateLimiter: new RateLimiter(60000, 100), // 100 API calls per minute
+});
+
+/**
+ * Process-wide teardown: downstream MCP sessions, tool/instruction maps and the rate
+ * limiters are shared by every Server in the process. Run it once at shutdown, never
+ * when a single HTTP session ends.
+ */
+const cleanupProxyState = async ({ toolCallRateLimiter, apiCallRateLimiter }: ProxyRateLimiters) => {
+  try {
+    // Clean up sessions
+    await cleanupAllSessions();
+
+    // Clear tool mappings
+    Object.keys(toolToServerMap).forEach(key => delete toolToServerMap[key]);
+    Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]);
+
+    // Reset rate limiters
+    toolCallRateLimiter.reset();
+    apiCallRateLimiter.reset();
+
+  } catch (error) {
+    debugError("[Proxy Cleanup] Error during cleanup:", error);
+  }
+};
+
+export const createServer = async (rateLimiters: ProxyRateLimiters = createRateLimiters()) => {
+  const { toolCallRateLimiter, apiCallRateLimiter } = rateLimiters;
+
   const server = new Server(
     {
       name: "PluggedinMCP",
@@ -340,7 +374,7 @@ export const createServer = async () => {
      const apiKey = getPluggedinMCPApiKey();
      const baseUrl = getPluggedinMCPApiBaseUrl();
      
-     // If no API key, return all static tools (for Smithery compatibility)
+     // If no API key, return all static tools (so clients can discover the catalogue)
      // This path should be fast and not rate limited for tool discovery
      if (!apiKey || !baseUrl) {
        // Don't log to console for STDIO transport as it interferes with protocol
@@ -368,7 +402,11 @@ export const createServer = async () => {
            memorySessionEndStaticTool,
            memoryObserveStaticTool,
            memorySearchStaticTool,
-           memoryDetailsStaticTool
+           memoryDetailsStaticTool,
+           cbpQueryStaticTool,
+           cbpFeedbackStaticTool,
+           memorySearchWithContextStaticTool,
+           memoryIndividuationStaticTool
          ],
          nextCursor: undefined
        };
@@ -379,7 +417,7 @@ export const createServer = async () => {
        throw new Error("Rate limit exceeded. Please try again later.");
      }
      
-     let fetchedTools: (Tool & { _serverUuid: string, _serverName?: string })[] = [];
+     let fetchedTools: (Tool & { _serverUuid: string, _serverName?: string, _serverSlug?: string })[] = [];
      
      try {
 
@@ -391,7 +429,7 @@ export const createServer = async () => {
 
        // Fetch the list of tools (which include original names and server info)
        // The API returns an object like { tools: [], message?: "..." }
-       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string })[], message?: string }>(apiUrl.toString(), {
+       const response = await axios.get<{ tools: (Tool & { _serverUuid: string, _serverName?: string, _serverSlug?: string })[], message?: string }>(apiUrl.toString(), {
          headers: {
            Authorization: `Bearer ${apiKey}`,
          },
@@ -410,7 +448,9 @@ export const createServer = async () => {
            // Store mapping with the tool name as returned by API (may be prefixed or not)
            toolToServerMap[tool.name] = {
              originalName: tool.name, // Will be updated if prefixed
-             serverUuid: tool._serverUuid
+             serverUuid: tool._serverUuid,
+             // Slug of the owning server, used to resolve slug-prefixed names in tools/call
+             serverSlug: tool._serverSlug
            };
 
            // If UUID prefixing is enabled and the tool name is not already prefixed,
@@ -421,6 +461,9 @@ export const createServer = async () => {
              if (parsed) {
                // Tool name is prefixed, extract original name
                toolToServerMap[tool.name].originalName = parsed.originalName;
+               if (parsed.prefixType === 'slug' && !tool._serverSlug) {
+                 toolToServerMap[tool.name].serverSlug = parsed.serverIdentifier;
+               }
                debugLog(`[ListTools Handler] Tool ${tool.name} is ${parsed.prefixType}-prefixed, original: ${parsed.originalName}`);
              } else {
                // Tool name is not prefixed, this might be for backward compatibility
@@ -494,6 +537,10 @@ export const createServer = async () => {
          memoryObserveStaticTool,
          memorySearchStaticTool,
          memoryDetailsStaticTool,
+         cbpQueryStaticTool,
+         cbpFeedbackStaticTool,
+         memorySearchWithContextStaticTool,
+         memoryIndividuationStaticTool,
          ...toolsForClient
        ];
 
@@ -509,54 +556,6 @@ export const createServer = async () => {
        debugError("[ListTools Handler Error]", error);
        throw new Error(sanitizedError);
      }
-  });
-
-  // List Resources Handler - Returns available resources from the knowledge base
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    const { RESOURCE_REGISTRY } = await import('./resources/registry.js');
-    const { ensureAuth } = await import('./resources/helpers.js');
-
-    // Check auth status - always succeeds for non-auth resources
-    const { key, base } = ensureAuth('pluggedin://setup', false);
-
-    // Filter resources based on auth status
-    return {
-      resources: RESOURCE_REGISTRY
-        .filter(r => !r.requiresAuth || (key && base))
-        .map(({ uri, mimeType, name, description }) => ({
-          uri,
-          mimeType,
-          name,
-          description,
-        })),
-    };
-  });
-
-  // Read Resource Handler - Returns content of a specific resource
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const { uri } = request.params;
-    const { RESOURCE_REGISTRY } = await import('./resources/registry.js');
-    const { ensureAuth } = await import('./resources/helpers.js');
-
-    // Find resource definition
-    const def = RESOURCE_REGISTRY.find(r => r.uri === uri);
-    if (!def) {
-      throw new Error(`Resource not found: ${uri}`);
-    }
-
-    // Check authentication if required
-    ensureAuth(uri, def.requiresAuth);
-
-    // Return resource content
-    return {
-      contents: [
-        {
-          uri,
-          mimeType: def.mimeType,
-          text: def.getContent(),
-        },
-      ],
-    };
   });
 
   // Call Tool Handler - Routes tool calls to the appropriate downstream server
@@ -775,7 +774,7 @@ export const createServer = async () => {
                     // Also trigger discovery in background (fire and forget)
                     try {
                         const discoveryApiUrl = server_uuid
-                            ? `${baseUrl}/api/discover/${server_uuid}`
+                            ? `${baseUrl}/api/discover/${encodeURIComponent(server_uuid)}`
                             : `${baseUrl}/api/discover/all`;
 
                         axios.post(discoveryApiUrl, { force_refresh: false }, {
@@ -797,7 +796,7 @@ export const createServer = async () => {
             if (shouldRunDiscovery) {
                 // Define the API endpoint in pluggedin-app to trigger discovery
                 const discoveryApiUrl = server_uuid
-                    ? `${baseUrl}/api/discover/${server_uuid}` // Endpoint for specific server
+                    ? `${baseUrl}/api/discover/${encodeURIComponent(server_uuid)}` // Endpoint for specific server
                     : `${baseUrl}/api/discover/all`; // Endpoint for all servers
 
                 if (force_refresh) {
@@ -1311,7 +1310,7 @@ export const createServer = async () => {
                 throw new Error("Pluggedin API Key or Base URL is not configured for marking notifications.");
             }
 
-            const notificationApiUrl = `${baseUrl}/api/notifications/${validatedArgs.notificationId}/completed`;
+            const notificationApiUrl = `${baseUrl}/api/notifications/${encodeURIComponent(validatedArgs.notificationId)}/completed`;
             const timer = createExecutionTimer();
 
             try {
@@ -1375,7 +1374,7 @@ export const createServer = async () => {
                 throw new Error("Pluggedin API Key or Base URL is not configured for deleting notifications.");
             }
 
-            const notificationApiUrl = `${baseUrl}/api/notifications/${validatedArgs.notificationId}`;
+            const notificationApiUrl = `${baseUrl}/api/notifications/${encodeURIComponent(validatedArgs.notificationId)}`;
             const timer = createExecutionTimer();
 
             try {
@@ -1450,17 +1449,20 @@ export const createServer = async () => {
             const parsed = parseAnyPrefixedToolName(requestedToolName);
             if (parsed) {
                 // This is a prefixed tool name that wasn't in our map
-                // Try to find the tool by its original name and server identifier
-                const originalToolInfo = Object.values(toolToServerMap).find(
+                // Find the tool by its original name on the server the prefix names. A slug
+                // prefix must resolve to that slug's server, never to a same-named tool elsewhere.
+                const matches = Object.values(toolToServerMap).filter(
                     info => info.originalName === parsed.originalName && (
-                        parsed.prefixType === 'slug' || 
-                        (parsed.prefixType === 'uuid' && info.serverUuid === parsed.serverIdentifier)
+                        parsed.prefixType === 'slug'
+                            ? info.serverSlug === parsed.serverIdentifier
+                            : info.serverUuid === parsed.serverIdentifier
                     )
                 );
+                const matchedServerUuids = new Set(matches.map(info => info.serverUuid));
 
-                if (originalToolInfo) {
+                if (matchedServerUuids.size === 1) {
                     originalName = parsed.originalName;
-                    serverUuid = originalToolInfo.serverUuid;
+                    serverUuid = matches[0].serverUuid;
                     debugLog(`[CallTool Handler] Found ${parsed.prefixType}-prefixed tool: ${requestedToolName} -> ${originalName} on server ${serverUuid}`);
                 } else {
                     throw new Error(`Tool not found: ${requestedToolName} (parsed as server ${parsed.prefixType} ${parsed.serverIdentifier}, tool ${parsed.originalName})`);
@@ -1487,6 +1489,28 @@ export const createServer = async () => {
         if (!params) {
             throw new Error(`Configuration not found for server UUID: ${serverUuid} associated with tool ${requestedToolName}`);
         }
+
+        // Build the server context (custom instructions and constraints) from the selected
+        // server's configuration, and enforce its constraints before opening a session
+        let serverContext: any = undefined;
+        const { buildServerContextsMap, validateToolAgainstConstraints } = await import('./utils/custom-instructions.js');
+        const context = buildServerContextsMap([params]).get(serverUuid);
+        if (context) {
+            // Check if the tool violates any constraints
+            const constraintMap = new Map([[serverUuid, context.constraints]]);
+            const validation = validateToolAgainstConstraints(originalName, serverUuid, constraintMap);
+            if (!validation.valid) {
+                throw new Error(validation.reason || 'Tool execution blocked by server constraints');
+            }
+
+            // Add context to metadata for the downstream server
+            serverContext = {
+                instructions: context.formattedContext,
+                constraints: Object.keys(context.constraints).length > 0 ? context.constraints : undefined,
+                isReadOnly: context.constraints.readonly
+            };
+        }
+
         const sessionKey = getSessionKey(serverUuid, params);
         const session = await getSession(sessionKey, serverUuid, params);
 
@@ -1494,33 +1518,6 @@ export const createServer = async () => {
             throw new Error(`Session not found for server UUID: ${serverUuid}`);
         }
 
-        // Get server context from static handlers if available
-        let serverContext: any = undefined;
-        if (staticHandlers) {
-            // Use constraint map for efficient validation
-            const constraints = staticHandlers.getConstraints(serverUuid);
-            if (constraints) {
-                // Check if the tool violates any constraints
-                const { validateToolAgainstConstraints } = await import('./utils/custom-instructions.js');
-                const constraintMap = new Map([[serverUuid, constraints]]);
-                const validation = validateToolAgainstConstraints(originalName, serverUuid, constraintMap);
-                if (!validation.valid) {
-                    throw new Error(validation.reason || 'Tool execution blocked by server constraints');
-                }
-            }
-            
-            // Get the full context for metadata
-            const context = staticHandlers.getServerContextByUuid(serverUuid);
-            if (context) {
-                // Add context to metadata for the downstream server
-                serverContext = {
-                    instructions: context.formattedContext,
-                    constraints: Object.keys(context.constraints).length > 0 ? context.constraints : undefined,
-                    isReadOnly: context.constraints.readonly
-                };
-            }
-        }
-        
         // Proxy the call to the downstream server using the original tool name
         const timer = createExecutionTimer();
         
@@ -2027,6 +2024,11 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
 
       } else {
         // --- Handle Standard Prompt Request (Existing Logic) ---
+        // Rate limit check for downstream prompt requests (resolution + downstream session work)
+        if (!toolCallRateLimiter.checkLimit()) {
+          throw new Error("Rate limit exceeded. Please try again later.");
+        }
+
         // 1. Call the resolve API endpoint to find which server has this prompt
         const resolveApiUrl = `${baseUrl}/api/resolve/prompt?name=${encodeURIComponent(name)}`;
         const resolveResponse = await axios.get<{uuid: string}>(resolveApiUrl, {
@@ -2180,16 +2182,27 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   server.setRequestHandler(ListPromptsRequestSchema, listPromptsHandler);
 
 
-  // List Resources Handler - Fetches aggregated list from Pluggedin App API
+  // List Resources Handler - Built-in Plugged.in resources plus the aggregated list from Pluggedin App API
+  // (each resource method is registered once; a second registration would replace the first)
   // Extract ListResources handler logic for error handling
   const listResourcesHandler = withErrorHandling(async (request: any) => {
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
 
-    // If no API key, return empty resources (for MCP best practices)
+    // Built-in resources; those that require auth are only listed when credentials are configured
+    const builtInResources = RESOURCE_REGISTRY
+      .filter(r => !r.requiresAuth || (apiKey && baseUrl))
+      .map(({ uri, mimeType, name, description }) => ({
+        uri,
+        mimeType,
+        name,
+        description,
+      }));
+
+    // If no API key, return only the public built-in resources (for MCP best practices)
     if (!apiKey || !baseUrl) {
       return {
-        resources: [],
+        resources: builtInResources,
         nextCursor: undefined
       };
     }
@@ -2208,7 +2221,7 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
 
     // Note: Pagination across servers via the API is not implemented here.
     // The API would need to support cursor-based pagination for this to work fully.
-    return { resources: resources, nextCursor: undefined };
+    return { resources: [...builtInResources, ...resources], nextCursor: undefined };
   }, {
     action: 'list_resources'
   });
@@ -2223,6 +2236,27 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params;
     const meta = request.params._meta; // Pass meta along
+
+    // Built-in Plugged.in resources are served locally, never resolved remotely
+    const builtInResource = RESOURCE_REGISTRY.find(r => r.uri === uri);
+    if (builtInResource) {
+      // Check authentication if required
+      ensureAuth(uri, builtInResource.requiresAuth);
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: builtInResource.mimeType,
+            text: builtInResource.getContent(),
+          },
+        ],
+      };
+    }
+
+    // Rate limit check for downstream resource reads (resolution + downstream session work)
+    if (!toolCallRateLimiter.checkLimit()) {
+      throw new Error("Rate limit exceeded. Please try again later.");
+    }
 
     try {
         const apiKey = getPluggedinMCPApiKey();
@@ -2382,23 +2416,22 @@ The proxy acts as a unified gateway to all your MCP capabilities while providing
     return {};
   });
 
-  const cleanup = async () => {
-    try {
-      // Clean up sessions
-      await cleanupAllSessions();
-      
-      // Clear tool mappings
-      Object.keys(toolToServerMap).forEach(key => delete toolToServerMap[key]);
-      Object.keys(instructionToServerMap).forEach(key => delete instructionToServerMap[key]);
-      
-      // Reset rate limiters
-      toolCallRateLimiter.reset();
-      apiCallRateLimiter.reset();
-      
-    } catch (error) {
-      debugError("[Proxy Cleanup] Error during cleanup:", error);
-    }
-  };
+  const cleanup = () => cleanupProxyState(rateLimiters);
 
   return { server, cleanup };
+};
+
+/**
+ * For transports that need one Server per connection (Streamable HTTP sessions):
+ * the SDK refuses a second connect() on a Server. Every Server built here shares the
+ * process-wide state (rate limiters, downstream sessions, tool maps). Closing one
+ * such Server is the per-session cleanup; `cleanup` tears down the shared state
+ * and belongs at process shutdown only.
+ */
+export const createServerFactory = () => {
+  const rateLimiters = createRateLimiters();
+  return {
+    createServer: async () => (await createServer(rateLimiters)).server,
+    cleanup: () => cleanupProxyState(rateLimiters),
+  };
 };

@@ -25,15 +25,26 @@ export function validateEnvVarName(name: string): boolean {
   return /^[A-Z0-9_]+$/i.test(name);
 }
 
+// Hosts where plain http cannot leave the machine (URL keeps IPv6 brackets)
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 /**
- * Validates API base URL (permissive for client use)
+ * Validates API base URL. The base URL receives the user's Bearer key on
+ * every request, so it must be https; plain http is allowed only for
+ * loopback hosts (local development). Embedded credentials are rejected.
  * @param url - The URL to validate
  * @returns true if valid, false otherwise
  */
 export function validateApiUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return ['http:', 'https:'].includes(parsed.protocol);
+    if (parsed.username || parsed.password) {
+      return false;
+    }
+    if (parsed.protocol === 'https:') {
+      return true;
+    }
+    return parsed.protocol === 'http:' && LOOPBACK_HOSTNAMES.has(parsed.hostname);
   } catch {
     return false;
   }

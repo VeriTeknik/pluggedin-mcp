@@ -2,9 +2,11 @@
 /**
  * Docker HEALTHCHECK script
  * Verifies the server is responding on the /health endpoint
+ *
+ * ES module: package.json declares "type": "module", so require() is not available here.
  */
 
-const http = require('http');
+import http from 'node:http';
 
 const port = process.env.PORT || 8081;
 const url = `http://localhost:${port}/health`;

@@ -38,16 +38,18 @@ export const ListNotificationsInputSchema = z.object({
     .describe("Filter by severity level: INFO, SUCCESS, WARNING, or ALERT (optional)"),
 });
 
+// Notification IDs are UUIDs and end up as a URL path segment, so anything else
+// (e.g. "../", "#", "?") is rejected before it can reach the request URL
 // Input schema for mark notification done validation
 export const MarkNotificationDoneInputSchema = z.object({
-  notificationId: z.string().min(1, "Notification ID cannot be empty")
-    .describe("The unique ID of the notification to mark as done"),
+  notificationId: z.string().uuid("Notification ID must be a UUID")
+    .describe("The unique ID (UUID) of the notification to mark as done"),
 });
 
 // Input schema for delete notification validation
 export const DeleteNotificationInputSchema = z.object({
-  notificationId: z.string().min(1, "Notification ID cannot be empty")
-    .describe("The unique ID of the notification to delete"),
+  notificationId: z.string().uuid("Notification ID must be a UUID")
+    .describe("The unique ID (UUID) of the notification to delete"),
 });
 
 // Input schema for create document validation

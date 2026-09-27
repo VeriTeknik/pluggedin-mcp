@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- Hardening from an internal security audit (HTTP transport authentication and session handling, Origin/Host validation, credential file handling, API path parameters, log redaction, downstream session revocation). Details are in the GitHub security advisory.
+
+### Removed
+- **Smithery support.** `smithery.yaml`, the `./server` export (`src/server.ts`) and the Smithery deployment docs are gone. Run the proxy with `node dist/index.js --transport streamable-http` (or the Docker image) and configure it through environment variables (`PLUGGEDIN_API_KEY`, `PLUGGEDIN_API_BASE_URL`, `REQUIRE_API_AUTH`, `MCP_ALLOWED_ORIGINS`, `MCP_ALLOWED_HOSTS`).
+
 ## [2.3.0] - 2026-06-04
 
 ### Security

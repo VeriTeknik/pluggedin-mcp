@@ -5,7 +5,6 @@
   <h3>The Crossroads for AI Data Exchanges</h3>
   <p>A unified MCP hub that gives your AI <strong>Knowledge</strong>, <strong>Memory</strong>, and <strong>Tools</strong> — not just a proxy. Manage and test all MCP servers from a single connection while powering document-aware and memory-augmented workflows across clients.</p>
 
-  [![smithery badge](https://smithery.ai/badge/@VeriTeknik/pluggedin-mcp)](https://smithery.ai/server/@VeriTeknik/pluggedin-mcp)
   [![Version](https://img.shields.io/badge/version-1.9.0-blue?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/releases)
   [![GitHub Stars](https://img.shields.io/github/stars/VeriTeknik/pluggedin-mcp?style=for-the-badge)](https://github.com/VeriTeknik/pluggedin-mcp/stargazers)
   [![License](https://img.shields.io/github/license/VeriTeknik/pluggedin-mcp?style=for-the-badge)](LICENSE)
@@ -320,6 +319,8 @@ npx -y @pluggedin/pluggedin-mcp-proxy@latest --pluggedin-api-key YOUR_API_KEY
 |----------|-------------|----------|---------|
 | `PLUGGEDIN_API_KEY` | API key from plugged.in App | Yes | - |
 | `PLUGGEDIN_API_BASE_URL` | Base URL for plugged.in App | No | `https://plugged.in` |
+| `MCP_ALLOWED_ORIGINS` | Streamable HTTP: comma-separated browser origins allowed to call the MCP endpoint (requests from other origins get 403; requests without an `Origin` header are unaffected). `*` allows any origin | No | loopback origins (`http://localhost:*`, `http://127.0.0.1:*`, `http://[::1]:*`) |
+| `MCP_ALLOWED_HOSTS` | Streamable HTTP: extra `Host` names accepted on the MCP endpoint (DNS-rebinding protection), e.g. the public name of a local reverse proxy. On a non-loopback `BIND_HOST` the check applies only when this is set | No | loopback names |
 
 ### Command Line Arguments
 
@@ -459,30 +460,6 @@ This will connect to the standard input/output of the running container.
 ### Stopping the Container
 
 Press `Ctrl+C` in the terminal where `docker run` is executing. The `--rm` flag ensures the container is removed automatically upon stopping.
-
-## ☁️ Smithery Cloud Deployment
-
-Deploy the plugged.in MCP Proxy to [Smithery Cloud](https://smithery.ai) for hosted, always-available access to your MCP servers.
-
-### Quick Start
-
-1. Visit [smithery.ai](https://smithery.ai) and sign in
-2. Connect your GitHub account and select the `pluggedin-mcp` repository
-3. Configure your Plugged.in API key in the Smithery UI
-4. Deploy and get your HTTPS endpoint
-
-### Benefits
-
-- **24/7 Availability**: Your proxy is always running
-- **Zero Configuration**: Smithery auto-detects settings from `smithery.yaml`
-- **Automatic Scaling**: Handle multiple concurrent connections
-- **Web Access**: Perfect for web applications and remote clients
-
-### Documentation
-
-For complete deployment instructions, configuration options, troubleshooting, and technical details, see:
-
-**📖 [Smithery Deployment Guide](docs/SMITHERY_DEPLOYMENT.md)**
 
 ## Autonomous Agents (Preview)
 

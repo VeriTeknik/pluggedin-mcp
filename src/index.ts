@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createServer } from "./mcp-proxy.js";
+import { createServer, createServerFactory } from "./mcp-proxy.js";
 import { Command } from "commander";
-import { startStreamableHTTPServer } from "./streamable-http.js";
+import { startStreamableHTTPServer, resolveRequireApiAuth } from "./streamable-http.js";
+import { getPluggedinMCPApiKey } from "./utils.js";
+import { validateApiUrl, validateBearerToken } from "./security-utils.js";
 
 const program = new Command();
 
@@ -34,7 +36,7 @@ program
   )
   .option(
     "--require-api-auth",
-    "Require API key authentication for Streamable HTTP requests"
+    "Require API key authentication for Streamable HTTP requests (overrides REQUIRE_API_AUTH env var; on by default when BIND_HOST is not loopback and an API key is configured)"
   )
   // Allow unknown options and excess arguments to prevent errors when called by MCP inspector
   .allowUnknownOption()
@@ -44,34 +46,34 @@ program
 
 const options = program.opts();
 
-// Validate and sanitize command line arguments before setting environment variables
+// Validate command line arguments before setting environment variables.
+// Reject bad input instead of rewriting it: a silently altered base URL sends the
+// API key to a different host, and an altered key fails in confusing ways later.
 if (options['pluggedinApiKey']) {
-  // Validate API key format (alphanumeric, hyphens, underscores)
-  const sanitizedApiKey = String(options['pluggedinApiKey']).replace(/[^a-zA-Z0-9_-]/g, '');
-  if (sanitizedApiKey.length > 0) {
-    process.env.PLUGGEDIN_API_KEY = sanitizedApiKey;
-  }
-}
-if (options.pluggedinApiBaseUrl) {
-  // Validate URL format (basic URL characters only)
-  const sanitizedUrl = String(options.pluggedinApiBaseUrl).replace(/[^a-zA-Z0-9:/.\\-_]/g, '');
-  // Basic URL validation
-  try {
-    new URL(sanitizedUrl);
-    process.env.PLUGGEDIN_API_BASE_URL = sanitizedUrl;
-  } catch (error) {
-    console.error("Invalid API base URL provided");
+  const apiKey = String(options['pluggedinApiKey']).trim();
+  if (!validateBearerToken(apiKey)) {
+    // Never echo the key itself
+    console.error("Invalid API key format provided via --pluggedin-api-key");
     process.exit(1);
   }
+  process.env.PLUGGEDIN_API_KEY = apiKey;
+}
+if (options.pluggedinApiBaseUrl) {
+  const baseUrl = String(options.pluggedinApiBaseUrl).trim();
+  // validateApiUrl parses with new URL() and checks the scheme
+  if (!validateApiUrl(baseUrl)) {
+    console.error("Invalid API base URL provided via --pluggedin-api-base-url: expected an absolute https:// URL (http:// only for localhost, 127.0.0.1 or [::1])");
+    process.exit(1);
+  }
+  process.env.PLUGGEDIN_API_BASE_URL = baseUrl;
 }
 
 async function main() {
   // Removed --report flag handling
 
   try {
-    // Create the MCP server
-    const { server, cleanup: serverCleanup } = await createServer();
-    
+    // Process-wide proxy cleanup (downstream sessions, rate limiters)
+    let serverCleanup: () => Promise<void>;
     // Initialize transport based on the selected type
     let transportCleanup: (() => Promise<void>) | null = null;
     
@@ -81,22 +83,39 @@ async function main() {
       const port = parseInt(process.env.PORT || options.port, 10) || 8081;
       // Only log to console for HTTP transport, not STDIO
       console.log(`Starting Streamable HTTP server on port ${port}...`);
-      
-      transportCleanup = await startStreamableHTTPServer(server, {
+
+      // Priority: --require-api-auth flag > REQUIRE_API_AUTH env var > fail-closed default
+      const { requireApiAuth, notice } = resolveRequireApiAuth({
+        cliFlag: options.requireApiAuth,
+        envValue: process.env.REQUIRE_API_AUTH,
+        bindHost: process.env.BIND_HOST,
+        hasApiKey: Boolean(getPluggedinMCPApiKey()),
+      });
+      if (notice) {
+        console.error(notice);
+      }
+
+      // One MCP Server per session: the SDK connects a Server to a single transport
+      const serverFactory = createServerFactory();
+      serverCleanup = serverFactory.cleanup;
+      transportCleanup = await startStreamableHTTPServer(serverFactory.createServer, {
         port,
-        requireApiAuth: options.requireApiAuth,
+        requireApiAuth,
         stateless: options.stateless
       });
       
       // For HTTP server, we don't need to handle stdin
     } else {
       // Default to STDIO transport
+      const { server, cleanup } = await createServer();
+      serverCleanup = cleanup;
       const transport = new StdioServerTransport();
       await server.connect(transport);
       
       // Cleanup function for STDIO
       transportCleanup = async () => {
         await transport.close();
+        await server.close();
       };
       
       // Handle stdin for STDIO mode
@@ -111,7 +130,6 @@ async function main() {
       if (transportCleanup) {
         await transportCleanup();
       }
-      await server.close();
       process.exit(0);
     };
 

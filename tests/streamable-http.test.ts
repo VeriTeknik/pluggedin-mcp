@@ -52,6 +52,29 @@ const TEST_PORTS = {
   SECURITY_NO_DETAILS: 3041,
 } as const;
 
+// Keys must pass the same format check as outbound calls (32-256 chars), or no key validates
+const TEST_API_KEY = 'pg_in_' + 'x'.repeat(40);
+
+// Sessions are only opened by a schema-valid initialize request
+const INIT_BODY = {
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {
+    protocolVersion: '2025-06-18',
+    capabilities: {},
+    clientInfo: { name: 'streamable-http-test', version: '1.0.0' },
+  },
+};
+
+// Opens a stateful session and returns the server-issued session ID
+async function initSession(port: number): Promise<string> {
+  const response = await request(`http://localhost:${port}`)
+    .post('/mcp')
+    .send(INIT_BODY);
+  return response.headers['mcp-session-id'];
+}
+
 // Mock the MCP SDK modules
 vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
   Server: vi.fn().mockImplementation(function () { return ({
@@ -82,7 +105,7 @@ describe('Streamable HTTP Transport', () => {
   beforeEach(() => {
     // Reset environment
     process.env = { ...originalEnv };
-    process.env.PLUGGEDIN_API_KEY = 'test-api-key';
+    process.env.PLUGGEDIN_API_KEY = TEST_API_KEY;
     
     // Create mock server
     mockServer = {
@@ -113,7 +136,7 @@ describe('Streamable HTTP Transport', () => {
   describe('Server Initialization', () => {
     it('should start server on specified port', async () => {
       const port = 3000;
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
       // Verify server is listening
       const response = await request(`http://localhost:${port}`)
@@ -128,7 +151,7 @@ describe('Streamable HTTP Transport', () => {
 
     it('should initialize in stateless mode', async () => {
       const port = 3001;
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: true 
       });
@@ -141,7 +164,7 @@ describe('Streamable HTTP Transport', () => {
 
     it('should initialize in stateful mode by default', async () => {
       const port = 3002;
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
       
       const response = await request(`http://localhost:${port}`)
         .get('/health');
@@ -153,7 +176,7 @@ describe('Streamable HTTP Transport', () => {
   describe('Authentication', () => {
     it('should reject requests without API key when auth is required', async () => {
       const port = 3003;
-      cleanup = await startStreamableHTTPServer(mockServer, {
+      cleanup = await startStreamableHTTPServer(() => mockServer, {
         port,
         requireApiAuth: true
       });
@@ -180,14 +203,16 @@ describe('Streamable HTTP Transport', () => {
       // Override the mock implementation
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         requireApiAuth: true 
       });
+      const sessionId = await initSession(port);
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .set('Authorization', 'Bearer test-api-key')
+        .set('mcp-session-id', sessionId)
+        .set('Authorization', `Bearer ${TEST_API_KEY}`)
         .send({ jsonrpc: '2.0', method: 'test', params: {} });
       
       expect(response.status).toBe(200);
@@ -207,13 +232,15 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         requireApiAuth: false 
       });
+      const sessionId = await initSession(port);
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
+        .set('mcp-session-id', sessionId)
         .send({ jsonrpc: '2.0', method: 'test', params: {} });
       
       expect(response.status).toBe(200);
@@ -233,14 +260,14 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       expect(response.status).toBe(200);
       expect(response.headers['mcp-session-id']).toBeDefined();
@@ -259,7 +286,7 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
@@ -267,7 +294,7 @@ describe('Streamable HTTP Transport', () => {
       // First request - create session
       const response1 = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test1', params: {} });
+        .send(INIT_BODY);
       
       const sessionId = response1.headers['mcp-session-id'];
       expect(sessionId).toBeDefined();
@@ -294,7 +321,7 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
@@ -302,7 +329,7 @@ describe('Streamable HTTP Transport', () => {
       // Create session
       const response1 = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       const sessionId = response1.headers['mcp-session-id'];
       
@@ -318,19 +345,16 @@ describe('Streamable HTTP Transport', () => {
 
     it('should return success for session deletion without session header', async () => {
       const port = 3009;
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
       
       // Attempt to delete without providing session ID
-      // In the implementation, if no session ID is provided, it generates a new one
-      // So this will actually succeed (200) rather than fail (404)
       const response = await request(`http://localhost:${port}`)
         .delete('/mcp');
       
-      // Without a session ID header, the server generates a new session
-      // Since the session doesn't exist in the transports map, it returns success
+      // Nothing to terminate: DELETE is idempotent and never allocates a session
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
     });
@@ -349,11 +373,11 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       expect(response.status).toBe(200);
       expect(response.body.result).toBe('post-success');
@@ -373,10 +397,12 @@ describe('Streamable HTTP Transport', () => {
 
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
+      const sessionId = await initSession(port);
 
       const response = await request(`http://localhost:${port}`)
         .get('/mcp')
+        .set('mcp-session-id', sessionId)
         .set('Accept', 'text/event-stream');
 
       expect(response.status).toBe(200);
@@ -401,10 +427,12 @@ describe('Streamable HTTP Transport', () => {
 
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
+      const sessionId = await initSession(port);
 
       const response = await request(`http://localhost:${port}`)
-        .get('/mcp');
+        .get('/mcp')
+        .set('mcp-session-id', sessionId);
 
       expect(response.status).toBe(200);
       // Verify that undefined was explicitly passed as the body parameter for GET requests
@@ -413,7 +441,7 @@ describe('Streamable HTTP Transport', () => {
 
     it('should reject unsupported methods', async () => {
       const port = 3012;
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
       const response = await request(`http://localhost:${port}`)
         .put('/mcp')
@@ -425,13 +453,15 @@ describe('Streamable HTTP Transport', () => {
 
     it('should handle OPTIONS for CORS', async () => {
       const port = 3013;
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
       
+      // The MCP routes echo an allowed Origin (loopback by default), never '*'
       const response = await request(`http://localhost:${port}`)
-        .options('/mcp');
+        .options('/mcp')
+        .set('Origin', 'http://localhost:6274');
       
       expect(response.status).toBe(200);
-      expect(response.headers['access-control-allow-origin']).toBe('*');
+      expect(response.headers['access-control-allow-origin']).toBe('http://localhost:6274');
       expect(response.headers['access-control-allow-methods']).toContain('GET');
       expect(response.headers['access-control-allow-methods']).toContain('POST');
       expect(response.headers['access-control-allow-methods']).toContain('DELETE');
@@ -449,11 +479,11 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       expect(response.status).toBe(500);
       expect(response.body.error.code).toBe(-32603);
@@ -470,11 +500,11 @@ describe('Streamable HTTP Transport', () => {
       const port = 3015;
       mockServer.connect = vi.fn().mockRejectedValue(new Error('Connection failed'));
       
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
       
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       expect(response.status).toBe(500);
       expect(response.body.error.message).toBe('Internal server error');
@@ -495,7 +525,7 @@ describe('Streamable HTTP Transport', () => {
         close: mockClose
       }); });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: true 
       });
@@ -526,7 +556,7 @@ describe('Streamable HTTP Transport', () => {
         close: mockClose
       }); });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: true 
       });
@@ -556,7 +586,7 @@ describe('Streamable HTTP Transport', () => {
         return transport;
       });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
@@ -565,7 +595,7 @@ describe('Streamable HTTP Transport', () => {
       for (let i = 0; i < 3; i++) {
         await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'test', params: {} });
+          .send(INIT_BODY);
       }
       
       // Cleanup
@@ -591,14 +621,14 @@ describe('Streamable HTTP Transport', () => {
       
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
       
-      cleanup = await startStreamableHTTPServer(mockServer, { 
+      cleanup = await startStreamableHTTPServer(() => mockServer, { 
         port, 
         stateless: false 
       });
       
       await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
       
       // Cleanup should not throw despite error
       await expect(cleanup()).resolves.not.toThrow();
@@ -610,7 +640,7 @@ describe('Streamable HTTP Transport', () => {
     describe('CORS Headers', () => {
       it('should include Access-Control-Expose-Headers', async () => {
         const port = 3020;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .get('/health');
@@ -622,7 +652,7 @@ describe('Streamable HTTP Transport', () => {
 
       it('should allow MCP headers in CORS', async () => {
         const port = 3021;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .get('/health');
@@ -634,19 +664,21 @@ describe('Streamable HTTP Transport', () => {
 
       it('should handle OPTIONS preflight correctly', async () => {
         const port = 3022;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
+        // The MCP routes echo an allowed Origin (loopback by default), never '*'
         const response = await request(`http://localhost:${port}`)
-          .options('/mcp');
+          .options('/mcp')
+          .set('Origin', 'http://localhost:6274');
 
         expect(response.status).toBe(200);
-        expect(response.headers['access-control-allow-origin']).toBe('*');
+        expect(response.headers['access-control-allow-origin']).toBe('http://localhost:6274');
         expect(response.headers['access-control-allow-methods']).toContain('POST');
       });
 
       it('should handle OPTIONS preflight for non-/mcp endpoints consistently', async () => {
         const port = 3023;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .options('/health');
@@ -670,11 +702,11 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         expect(response.status).not.toBe(400);
       });
@@ -689,12 +721,12 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
           .set('Mcp-Protocol-Version', '2024-11-05')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         expect(response.status).not.toBe(400);
       });
@@ -709,12 +741,12 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
           .set('Mcp-Protocol-Version', '2025-06-18')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         expect(response.status).not.toBe(400);
       });
@@ -729,12 +761,12 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         // Request without Mcp-Protocol-Version header
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         // Should not reject requests without protocol version
         expect(response.status).not.toBe(400);
@@ -758,11 +790,11 @@ describe('Streamable HTTP Transport', () => {
             close: vi.fn()
           }); });
 
-          cleanup = await startStreamableHTTPServer(mockServer, { port: port++ });
+          cleanup = await startStreamableHTTPServer(() => mockServer, { port: port++ });
           const response = await request(`http://localhost:${port - 1}`)
             .post('/mcp')
             .set('Mcp-Protocol-Version', version)
-            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+            .send(INIT_BODY);
 
           expect(response.status, `version ${version} should be accepted`).not.toBe(400);
           if (cleanup) { await cleanup(); cleanup = undefined; }
@@ -771,12 +803,12 @@ describe('Streamable HTTP Transport', () => {
 
       it('should reject unsupported protocol version', async () => {
         const port = TEST_PORTS.PROTOCOL_UNSUPPORTED;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
           .set('Mcp-Protocol-Version', '2023-01-01')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         expect(response.status).toBe(400);
         // Verify error message includes supported versions
@@ -796,11 +828,11 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         expect(response.headers['mcp-protocol-version']).toBe(MCP_PROTOCOL_VERSION);
       });
@@ -815,7 +847,7 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         // Try different casings for the request header
         const casings = [
@@ -828,7 +860,7 @@ describe('Streamable HTTP Transport', () => {
           const response = await request(`http://localhost:${port}`)
             .post('/mcp')
             .set(casing, '2024-11-05')
-            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+            .send(INIT_BODY);
 
           // Check that the response header is set (supertest lowercases all headers)
           // Response always advertises the latest protocol version (from the bundled SDK)
@@ -849,11 +881,11 @@ describe('Streamable HTTP Transport', () => {
           options
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+          .send(INIT_BODY);
 
         // Assert the header exists (supertest lowercases all headers)
         expect(response.headers['mcp-session-id']).toBeTruthy();
@@ -870,23 +902,20 @@ describe('Streamable HTTP Transport', () => {
           options
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
+        const sessionId = await initSession(port);
 
-        // Try different casings
-        const casings = [
-          { header: 'Mcp-Session-Id', value: 'session-title-case' },
-          { header: 'mcp-session-id', value: 'session-lower-case' },
-          { header: 'MCP-SESSION-ID', value: 'session-upper-case' }
-        ];
+        // Session IDs are server-issued; reuse the issued one under different header casings
+        const casings = ['Mcp-Session-Id', 'mcp-session-id', 'MCP-SESSION-ID'];
 
-        for (const { header, value } of casings) {
+        for (const header of casings) {
           const response = await request(`http://localhost:${port}`)
             .post('/mcp')
-            .set(header, value)
-            .send({ jsonrpc: '2.0', method: 'initialize', params: {} });
+            .set(header, sessionId)
+            .send({ jsonrpc: '2.0', id: 2, method: 'ping' });
 
           // The server should accept and process the session header regardless of casing
-          expect(response.status).not.toBe(400);
+          expect(response.status, header).toBe(200);
         }
       });
     });
@@ -894,7 +923,7 @@ describe('Streamable HTTP Transport', () => {
     describe('JSON-RPC Error Codes', () => {
       it('should return -32601 for unsupported HTTP method', async () => {
         const port = 3031;
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .put('/mcp')
@@ -908,7 +937,7 @@ describe('Streamable HTTP Transport', () => {
 
       it('should return -32001 for authentication failures (missing Authorization header)', async () => {
         const port = 3032;
-        cleanup = await startStreamableHTTPServer(mockServer, {
+        cleanup = await startStreamableHTTPServer(() => mockServer, {
           port,
           requireApiAuth: true
         });
@@ -928,7 +957,7 @@ describe('Streamable HTTP Transport', () => {
 
       it('should return -32001 for malformed Authorization header', async () => {
         const port = 3033;
-        cleanup = await startStreamableHTTPServer(mockServer, {
+        cleanup = await startStreamableHTTPServer(() => mockServer, {
           port,
           requireApiAuth: true
         });
@@ -949,7 +978,7 @@ describe('Streamable HTTP Transport', () => {
 
       it('should return -32001 for incorrect Bearer token', async () => {
         const port = 3034;
-        cleanup = await startStreamableHTTPServer(mockServer, {
+        cleanup = await startStreamableHTTPServer(() => mockServer, {
           port,
           requireApiAuth: true
         });
@@ -978,11 +1007,11 @@ describe('Streamable HTTP Transport', () => {
           close: vi.fn()
         }); });
 
-        cleanup = await startStreamableHTTPServer(mockServer, { port });
+        cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
         const response = await request(`http://localhost:${port}`)
           .post('/mcp')
-          .send({ jsonrpc: '2.0', method: 'test', params: {} });
+          .send(INIT_BODY);
 
         expect(response.status).toBe(500);
         expect(response.body.error.code).toBe(-32603); // Internal error
@@ -993,17 +1022,19 @@ describe('Streamable HTTP Transport', () => {
   describe('Security Features', () => {
     it('should use timing-safe comparison for API keys', async () => {
       const port = 3030;
-      const correctKey = 'test-api-key-12345';
+      const correctKey = 'pg_in_test-api-key-1234567890abcdefghij';
       process.env.PLUGGEDIN_API_KEY = correctKey;
 
-      cleanup = await startStreamableHTTPServer(mockServer, {
+      cleanup = await startStreamableHTTPServer(() => mockServer, {
         port,
         requireApiAuth: true
       });
+      const sessionId = await initSession(port);
 
       // Test with correct API key
       const validResponse = await request(`http://localhost:${port}`)
         .post('/mcp')
+        .set('mcp-session-id', sessionId)
         .set('Authorization', `Bearer ${correctKey}`)
         .send({
           jsonrpc: '2.0',
@@ -1017,9 +1048,9 @@ describe('Streamable HTTP Transport', () => {
 
     it('should reject API key with wrong length (timing-safe)', async () => {
       const port = 3031;
-      process.env.PLUGGEDIN_API_KEY = 'test-api-key-12345';
+      process.env.PLUGGEDIN_API_KEY = 'pg_in_test-api-key-1234567890abcdefghij';
 
-      cleanup = await startStreamableHTTPServer(mockServer, {
+      cleanup = await startStreamableHTTPServer(() => mockServer, {
         port,
         requireApiAuth: true
       });
@@ -1041,15 +1072,15 @@ describe('Streamable HTTP Transport', () => {
 
     it('should reject API key with wrong characters (timing-safe)', async () => {
       const port = 3032;
-      process.env.PLUGGEDIN_API_KEY = 'test-api-key-12345';
+      process.env.PLUGGEDIN_API_KEY = 'pg_in_test-api-key-1234567890abcdefghij';
 
-      cleanup = await startStreamableHTTPServer(mockServer, {
+      cleanup = await startStreamableHTTPServer(() => mockServer, {
         port,
         requireApiAuth: true
       });
 
       // Test with same length but wrong characters (timing-safe comparison)
-      const wrongKey = 'test-api-key-99999'; // Same length, different chars
+      const wrongKey = 'pg_in_test-api-key-9999999999abcdefghij'; // Same length, different chars
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
         .set('Authorization', `Bearer ${wrongKey}`)
@@ -1076,11 +1107,11 @@ describe('Streamable HTTP Transport', () => {
       };
       (StreamableHTTPServerTransport as any).mockImplementation(function () { return mockTransport; });
 
-      cleanup = await startStreamableHTTPServer(mockServer, { port });
+      cleanup = await startStreamableHTTPServer(() => mockServer, { port });
 
       const response = await request(`http://localhost:${port}`)
         .post('/mcp')
-        .send({ jsonrpc: '2.0', method: 'test', params: {} });
+        .send(INIT_BODY);
 
       expect(response.status).toBe(500);
       expect(response.body.error.code).toBe(-32603);

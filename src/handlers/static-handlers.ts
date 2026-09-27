@@ -79,6 +79,10 @@ import {
   memoryIndividuationStaticTool
 } from '../tools/static-tools.js';
 
+// Upper bound for Plugged.in API requests, so a stalled upstream cannot leave
+// tool calls (and their sockets) pending indefinitely
+const API_REQUEST_TIMEOUT_MS = 30000;
+
 // Type for tool to server mapping
 export type ToolToServerMap = Record<string, { originalName: string; serverUuid: string; }>;
 
@@ -406,14 +410,11 @@ Set environment variables in your terminal before launching the editor.
   }
 
   async handleAskKnowledgeBase(args: any): Promise<ToolExecutionResult> {
-    console.error(`[DEBUG START] handleAskKnowledgeBase called with args:`, JSON.stringify(args));
     debugError(`[CallTool Handler] Executing static tool: ${askKnowledgeBaseStaticTool.name}`);
     const validatedArgs = AskKnowledgeBaseInputSchema.parse(args ?? {});
-    console.error(`[DEBUG] Validated args:`, JSON.stringify(validatedArgs));
 
     const apiKey = getPluggedinMCPApiKey();
     const baseUrl = getPluggedinMCPApiBaseUrl();
-    console.error(`[DEBUG] API Key exists:`, !!apiKey, `Base URL:`, baseUrl);
     if (!apiKey || !baseUrl) {
       return {
         content: [{
@@ -425,7 +426,6 @@ Set environment variables in your terminal before launching the editor.
     }
 
     const ragApiUrl = `${baseUrl}/api/rag/query`;
-    console.error(`[DEBUG] RAG API URL:`, ragApiUrl);
 
     const timer = createExecutionTimer();
     try {
@@ -433,7 +433,6 @@ Set environment variables in your terminal before launching the editor.
         query: validatedArgs.query,
         includeMetadata: true // Always request metadata
       };
-      console.error(`[DEBUG] Request body:`, JSON.stringify(requestBody));
 
       const response = await axios.post(
         ragApiUrl,
@@ -443,6 +442,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -455,9 +455,6 @@ Set environment variables in your terminal before launching the editor.
         success: true,
         executionTime: timer.stop(),
       }).catch(() => {}); // Ignore notification errors
-
-      // Debug logging to see what we're getting back
-      console.error('[DEBUG] RAG Response:', JSON.stringify(response.data, null, 2));
 
       // Always return structured JSON
       if (typeof response.data === 'object' && response.data.answer) {
@@ -566,6 +563,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -652,6 +650,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -719,7 +718,7 @@ Set environment variables in your terminal before launching the editor.
       };
     }
 
-    const notificationApiUrl = `${baseUrl}/api/notifications/${validatedArgs.notificationId}/completed`;
+    const notificationApiUrl = `${baseUrl}/api/notifications/${encodeURIComponent(validatedArgs.notificationId)}/completed`;
 
     const timer = createExecutionTimer();
     try {
@@ -730,6 +729,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -786,7 +786,7 @@ Set environment variables in your terminal before launching the editor.
       };
     }
 
-    const notificationApiUrl = `${baseUrl}/api/notifications/${validatedArgs.notificationId}`;
+    const notificationApiUrl = `${baseUrl}/api/notifications/${encodeURIComponent(validatedArgs.notificationId)}`;
 
     const timer = createExecutionTimer();
     try {
@@ -796,6 +796,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -864,6 +865,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -953,6 +955,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1038,6 +1041,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1108,7 +1112,7 @@ Set environment variables in your terminal before launching the editor.
     queryParams.append('includeContent', validatedArgs.includeContent.toString());
     queryParams.append('includeVersions', validatedArgs.includeVersions.toString());
 
-    const documentApiUrl = `${baseUrl}/api/documents/${validatedArgs.documentId}?${queryParams.toString()}`;
+    const documentApiUrl = `${baseUrl}/api/documents/${encodeURIComponent(validatedArgs.documentId)}?${queryParams.toString()}`;
 
     const timer = createExecutionTimer();
     try {
@@ -1118,6 +1122,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1287,7 +1292,7 @@ Set environment variables in your terminal before launching the editor.
       };
     }
 
-    const documentApiUrl = `${baseUrl}/api/documents/${validatedArgs.documentId}`;
+    const documentApiUrl = `${baseUrl}/api/documents/${encodeURIComponent(validatedArgs.documentId)}`;
 
     const timer = createExecutionTimer();
     try {
@@ -1299,6 +1304,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1379,6 +1385,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1472,6 +1479,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1593,6 +1601,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
           data: validatedArgs,
         }
       );
@@ -1679,6 +1688,7 @@ Set environment variables in your terminal before launching the editor.
           headers: {
             'Authorization': `Bearer ${apiKey}`,
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1756,6 +1766,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1840,6 +1851,7 @@ Set environment variables in your terminal before launching the editor.
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
+          timeout: API_REQUEST_TIMEOUT_MS,
         }
       );
 
@@ -1909,7 +1921,7 @@ Set environment variables in your terminal before launching the editor.
   private async executeMemoryApiCall(
     toolName: string,
     failureMessage: string,
-    apiCall: (baseUrl: string, headers: Record<string, string>) => Promise<AxiosResponse>,
+    apiCall: (baseUrl: string, requestConfig: { headers: Record<string, string>; timeout: number }) => Promise<AxiosResponse>,
     formatResponse: (data: AxiosResponse['data']) => string,
     options?: { serverName?: string; serverUuid?: string; notFoundMessage?: string }
   ): Promise<ToolExecutionResult> {
@@ -1931,7 +1943,7 @@ Set environment variables in your terminal before launching the editor.
     const headers = { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
     const timer = createExecutionTimer();
     try {
-      const response = await apiCall(baseUrl, headers);
+      const response = await apiCall(baseUrl, { headers, timeout: API_REQUEST_TIMEOUT_MS });
 
       logMcpActivity({
         action: 'tool_call', serverName, serverUuid,
@@ -1975,7 +1987,7 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memorySessionStartStaticTool.name,
       "Failed to start memory session",
-      (baseUrl, headers) => axios.post(`${baseUrl}/api/memory/sessions`, validatedArgs, { headers }),
+      (baseUrl, requestConfig) => axios.post(`${baseUrl}/api/memory/sessions`, validatedArgs, requestConfig),
       (responseData) => {
         const data = responseData.data;
         return `Memory session started!\nSession UUID: ${data.uuid}\nMemory Session ID: ${data.memorySessionId}\n\nUse the session UUID for pluggedin_memory_observe calls, and the memory_session_id for pluggedin_memory_session_end.`;
@@ -1988,10 +2000,10 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memorySessionEndStaticTool.name,
       "Failed to end memory session",
-      (baseUrl, headers) => axios.patch(
-        `${baseUrl}/api/memory/sessions/${validatedArgs.memory_session_id}`,
+      (baseUrl, requestConfig) => axios.patch(
+        `${baseUrl}/api/memory/sessions/${encodeURIComponent(validatedArgs.memory_session_id)}`,
         { action: 'end' },
-        { headers }
+        requestConfig
       ),
       () => "Memory session ended successfully.\nZ-report generation has been triggered and will process in the background."
     );
@@ -2002,15 +2014,15 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memoryObserveStaticTool.name,
       "Failed to record observation",
-      (baseUrl, headers) => axios.post(
-        `${baseUrl}/api/memory/sessions/${validatedArgs.session_uuid}/observations`,
+      (baseUrl, requestConfig) => axios.post(
+        `${baseUrl}/api/memory/sessions/${encodeURIComponent(validatedArgs.session_uuid)}/observations`,
         {
           type: validatedArgs.type,
           content: validatedArgs.content,
           outcome: validatedArgs.outcome,
           metadata: validatedArgs.metadata,
         },
-        { headers }
+        requestConfig
       ),
       (responseData) => {
         const data = responseData.data;
@@ -2024,7 +2036,7 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memorySearchStaticTool.name,
       "Failed to search memories",
-      (baseUrl, headers) => axios.post(`${baseUrl}/api/memory/search`, validatedArgs, { headers }),
+      (baseUrl, requestConfig) => axios.post(`${baseUrl}/api/memory/search`, validatedArgs, requestConfig),
       (responseData) => {
         const results = responseData.data || [];
         if (results.length === 0) {
@@ -2052,10 +2064,10 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memoryDetailsStaticTool.name,
       "Failed to get memory details",
-      (baseUrl, headers) => axios.post(
+      (baseUrl, requestConfig) => axios.post(
         `${baseUrl}/api/memory/search/details`,
         { memory_uuids: validatedArgs.memory_uuids },
-        { headers }
+        requestConfig
       ),
       (responseData) => {
         const details = responseData.data || [];
@@ -2153,9 +2165,9 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       cbpQueryStaticTool.name,
       "Failed to query collective best practices",
-      (baseUrl, headers) => axios.get(
+      (baseUrl, requestConfig) => axios.get(
         `${baseUrl}/api/memory/cbp?${params.toString()}`,
-        { headers }
+        requestConfig
       ),
       (responseData) => {
         const patterns = responseData.data || [];
@@ -2186,10 +2198,10 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       cbpFeedbackStaticTool.name,
       "Failed to submit CBP feedback",
-      (baseUrl, headers) => axios.post(
+      (baseUrl, requestConfig) => axios.post(
         `${baseUrl}/api/memory/cbp/feedback`,
         validatedArgs,
-        { headers }
+        requestConfig
       ),
       () => `Feedback submitted for pattern ${validatedArgs.pattern_uuid}.\nRating: ${validatedArgs.rating}/5 (${validatedArgs.feedback_type})`,
       { serverName: 'CBP System', serverUuid: 'pluggedin_cbp', notFoundMessage: 'Pattern not found. The pattern UUID may be invalid.' }
@@ -2203,10 +2215,10 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memorySearchWithContextStaticTool.name,
       'Failed to search memories with archetype context',
-      (baseUrl, headers) => axios.post(
+      (baseUrl, requestConfig) => axios.post(
         `${baseUrl}/api/memory/archetype/inject`,
         validatedArgs,
-        { headers }
+        requestConfig
       ),
       (responseData) => {
         const data = responseData.data ?? {};
@@ -2255,9 +2267,9 @@ Set environment variables in your terminal before launching the editor.
     return this.executeMemoryApiCall(
       memoryIndividuationStaticTool.name,
       'Failed to get individuation score',
-      (baseUrl, headers) => axios.get(
+      (baseUrl, requestConfig) => axios.get(
         `${baseUrl}/api/memory/individuation`,
-        { headers }
+        requestConfig
       ),
       (responseData) => {
         const data = responseData.data ?? {};

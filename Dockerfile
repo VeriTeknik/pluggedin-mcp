@@ -46,9 +46,8 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/dist ./dist
 
 # Copy required config files
-COPY smithery.yaml ./
 
-# Copy .well-known directory for Smithery discovery
+# Copy .well-known directory for MCP server discovery
 COPY .well-known ./.well-known
 
 # Copy healthcheck script
@@ -57,10 +56,13 @@ COPY scripts/healthcheck.js ./scripts/
 # Set environment variables
 ENV NODE_ENV=production
 ENV PORT=8081
-# Bind to 0.0.0.0 to allow external connections in Docker/Cloud environments
+# Bind to 0.0.0.0 to allow external connections in Docker/Cloud environments.
+# Because this is not a loopback address, dist/index.js requires API auth by default
+# whenever a PLUGGEDIN_API_KEY is configured (Bearer <key> on every MCP request except
+# the initialize/ping handshake). REQUIRE_API_AUTH=true|false overrides that default.
 ENV BIND_HOST=0.0.0.0
 
-# Expose Smithery's expected port (8081)
+# Expose the default Streamable HTTP port (8081)
 EXPOSE 8081
 
 # Add health check for container readiness

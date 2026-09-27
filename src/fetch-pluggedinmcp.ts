@@ -1,5 +1,4 @@
 import axios from "axios";
-import crypto from "crypto";
 import {
   getDefaultEnvironment,
   getPluggedinMCPApiBaseUrl,
@@ -45,8 +44,9 @@ async function invalidateMcpServersCache(): Promise<void> {
   );
 }
 
+// Compared in memory only (never stored or logged); the process already holds the key
 const getCacheOwner = (apiKey: string, apiBaseUrl: string): string =>
-  crypto.createHash("sha256").update(`${apiKey}\n${apiBaseUrl}`).digest("hex");
+  `${apiKey}\n${apiBaseUrl}`;
 
 // Removed logger
 

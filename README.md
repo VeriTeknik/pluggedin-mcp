@@ -3,13 +3,14 @@
 > [!IMPORTANT]
 > **Project status (October 2026): open source, community-driven.**
 > plugged.in, the hosted service, is moving to a new, separately developed platform. After that move,
-> this repository will no longer run plugged.in. The code stays open source under its current license and
-> continues with open collaboration: issues, pull requests, forks and new maintainers are welcome, and
-> self-hosting remains supported. The cutover date will be announced here at least 60 days in advance.
+> this repository will no longer run plugged.in. The code stays open source under its current license, and the
+> community is welcome to carry it on: issues, pull requests, forks and new maintainers are welcome, and
+> self-hosting remains supported. The cutover date will be announced here. At the cutover, the current service
+> moves to v1.plugged.in and keeps running there until December 31, 2026.
 > [What this means](https://github.com/VeriTeknik/pluggedin-app/blob/main/PROJECT_STATUS.md)
 >
-> This client talks to the plugged.in API. After the cutover, the hosted endpoint will no longer serve it;
-> point it at your own pluggedin-app instance instead.
+> This client talks to the plugged.in API. Before the cutover we will release a version that points it to
+> v1.plugged.in. After December 31, 2026, point it at your own pluggedin-app instance.
 
 <div align="center">
   <img src="https://plugged.in/_next/image?url=%2Fpluggedin-wl.png&w=256&q=75" alt="plugged.in Logo" width="256" height="75">
